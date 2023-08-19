@@ -1,4 +1,2 @@
-mod db_interface;
-mod parser;
-
-use parser::parse_create_table;
+pub mod parser; 
+pub use parser::parse_create_table;
