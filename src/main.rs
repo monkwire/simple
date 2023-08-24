@@ -4,6 +4,8 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use datafusion::prelude::ParquetReadOptions;
 use datafusion::{self, prelude::SessionContext};
+use parquet::arrow::arrow_writer::ArrowWriter;
+use std::fs::File;
 
 fn create_file() {
     let schema = Schema::new(vec![
@@ -19,7 +21,13 @@ fn create_file() {
             Arc::new(StringArray::from(vec!["Smith", "Johnson", "Schwartz"])),
             Arc::new(StringArray::from(vec!["History", "Math", "English"])),
         ],
-    );
+    )
+    .unwrap();
+
+    let file = File::create("teachers.parquet").unwrap();
+    let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
+    let _res = writer.write(&batch);
+    writer.close().unwrap();
 }
 
 fn read_file(sql: &str) {
@@ -42,4 +50,8 @@ fn read_file(sql: &str) {
     let df = ctx.sql(sql);
 }
 
-fn main() {}
+fn main() {
+    println!("Hello from main");
+
+    create_file();
+}

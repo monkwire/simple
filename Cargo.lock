@@ -104,7 +104,7 @@ dependencies = [
  "arrow-json",
  "arrow-ord",
  "arrow-row",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "arrow-select",
  "arrow-string",
 ]
@@ -118,7 +118,7 @@ dependencies = [
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "chrono",
  "half",
  "num",
@@ -133,7 +133,7 @@ dependencies = [
  "ahash",
  "arrow-buffer",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "chrono",
  "chrono-tz",
  "half",
@@ -160,7 +160,7 @@ dependencies = [
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "arrow-select",
  "chrono",
  "comfy-table",
@@ -179,7 +179,7 @@ dependencies = [
  "arrow-buffer",
  "arrow-cast",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "chrono",
  "csv",
  "csv-core",
@@ -195,7 +195,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4f4f4a3c54614126a71ab91f6631c9743eb4643d6e9318b74191da9dc6e028b"
 dependencies = [
  "arrow-buffer",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "half",
  "num",
 ]
@@ -210,7 +210,7 @@ dependencies = [
  "arrow-buffer",
  "arrow-cast",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "flatbuffers",
 ]
 
@@ -224,7 +224,7 @@ dependencies = [
  "arrow-buffer",
  "arrow-cast",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "chrono",
  "half",
  "indexmap",
@@ -243,7 +243,7 @@ dependencies = [
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "arrow-select",
  "half",
  "num",
@@ -259,7 +259,7 @@ dependencies = [
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "half",
  "hashbrown",
 ]
@@ -271,6 +271,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bebcb57eef570b15afbcf2d07d813eb476fde9f6dd69c81004d6476c197e87e"
 
 [[package]]
+name = "arrow-schema"
+version = "45.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54df8c47918eb634c20e29286e69494fdc20cafa5173eb6dad49c7f6acece733"
+
+[[package]]
 name = "arrow-select"
 version = "43.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -279,7 +285,7 @@ dependencies = [
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "num",
 ]
 
@@ -292,7 +298,7 @@ dependencies = [
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "arrow-select",
  "num",
  "regex",
@@ -631,7 +637,7 @@ dependencies = [
  "ahash",
  "arrow",
  "arrow-array",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "async-compression",
  "async-trait",
  "bytes",
@@ -661,7 +667,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser",
+ "sqlparser 0.35.0",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -683,7 +689,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
- "sqlparser",
+ "sqlparser 0.35.0",
 ]
 
 [[package]]
@@ -714,7 +720,7 @@ dependencies = [
  "arrow",
  "datafusion-common",
  "lazy_static",
- "sqlparser",
+ "sqlparser 0.35.0",
  "strum 0.25.0",
  "strum_macros 0.25.2",
 ]
@@ -747,7 +753,7 @@ dependencies = [
  "arrow",
  "arrow-array",
  "arrow-buffer",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "base64",
  "blake2",
  "blake3",
@@ -779,11 +785,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3ef8abf4dd84d3f20c910822b52779c035ab7f4f2d5e7125ede3bae618e9de8"
 dependencies = [
  "arrow",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser",
+ "sqlparser 0.35.0",
 ]
 
 [[package]]
@@ -1461,7 +1467,7 @@ dependencies = [
  "arrow-cast",
  "arrow-data",
  "arrow-ipc",
- "arrow-schema",
+ "arrow-schema 43.0.0",
  "arrow-select",
  "base64",
  "brotli",
@@ -1768,7 +1774,10 @@ name = "simple_db"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-schema 45.0.0",
  "datafusion",
+ "parquet",
+ "sqlparser 0.36.1",
 ]
 
 [[package]]
@@ -1825,6 +1834,16 @@ name = "sqlparser"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca597d77c98894be1f965f2e4e2d2a61575d4998088e655476c73715c54b2b43"
+dependencies = [
+ "log",
+ "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.36.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2eaa1e88e78d2c2460d78b7dc3f0c08dbb606ab4222f9aff36f420d36e307d87"
 dependencies = [
  "log",
  "sqlparser_derive",
