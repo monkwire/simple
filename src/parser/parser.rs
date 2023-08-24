@@ -1,4 +1,4 @@
-use sqlparser::ast::visit_statements;
+use sqlparser::ast::{visit_statements, Statement};
 use sqlparser::dialect::GenericDialect;
 use std::ops::ControlFlow;
 
@@ -16,6 +16,18 @@ pub fn parse(sql: &str) {
     let unparsed_statements =
         sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql).unwrap();
 
+    let mut i = 1;
+    for statement in &unparsed_statements {
+        println!("\nstatement {}", i);
+        println!("statements: {:?}", statement);
+        i += 1;
+
+        match statement {
+            Statement::Query(query) => println!("found query"),
+            _ => println!("found not query"),
+        }
+    }
+
     let mut statements = vec![];
     visit_statements(&unparsed_statements, |stmt| {
         statements.push(format!("STATEMENT: {}", stmt));
@@ -27,22 +39,4 @@ pub fn parse(sql: &str) {
     }
 }
 
-pub fn parse_statement(statement: String) {
-    let words: Vec<&str> = statement.split_whitespace().collect();
-
-    for (i, word) in words.iter().enumerate() {
-        println!("word {} :\n - {}", i, word);
-    }
-
-    match words[1] {
-        "SELECT" => handle_select_statement(statement),
-        _ => println!("not select"),
-    }
-}
-
-pub fn handle_select_statement(statement: String) {
-    println!("handle select statement func");
-    // let relations: Vec<&str> =
-
-    let expressions = sqlparser::parser::Parser::parse_sql(&GenericDialect, statement).unwrap();
-}
+fn traverse_select(query: &Box<sqlparser::ast::Query>) {}
