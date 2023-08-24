@@ -1,14 +1,6 @@
-use std::sync::Arc;
 mod parser;
-use parser::parse_create_table;
-mod db_interface;
 
 fn main() {
-    println!("main func");
-    // let PATH = Arc::new("../data.parquet");
-    parse_create_table("this is a test".to_string());
-
-
-
-
+    println!("Hello from simple_db");
+    parser::parse("SELECT a FROM foo where x IN (SELECT y FROM bar); CREATE TABLE baz(q int)");
 }

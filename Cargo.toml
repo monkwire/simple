@@ -6,4 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-parquet = "45.0.0"
+parquet = "45.0.*"
+arrow = "45.0.*"
+sqlparser = { version = "0.36.*", features = ["visitor"] }
