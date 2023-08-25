@@ -2,6 +2,7 @@ use ::std::sync::Arc;
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
+use datafusion::error::DataFusionError;
 use datafusion::prelude::ParquetReadOptions;
 use datafusion::{self, prelude::SessionContext};
 use parquet::arrow::arrow_writer::ArrowWriter;
@@ -30,28 +31,54 @@ fn create_file() {
     writer.close().unwrap();
 }
 
-fn read_file(sql: &str) {
+async fn read_file(sql: &str) -> Result<(), DataFusionError> {
+    println!("hello from top of read_file");
     let ctx = SessionContext::new();
 
-    ctx.read_parquet(
-        "teachers",
-        ParquetReadOptions {
-            file_extension: ".parquet",
-            table_partition_cols: vec![
-                ("teacher_id".to_string(), DataType::Int32),
-                ("teacher_name".to_string(), DataType::Utf8),
-                ("teacher_subject".to_string(), DataType::Utf8),
-            ],
-            parquet_pruning: None,
-            skip_metadata: None,
-        },
-    );
+    let df_future = ctx
+        .read_parquet(
+            "./teachers.parquet",
+            ParquetReadOptions {
+                file_extension: ".parquet",
+                table_partition_cols: vec![
+                    ("teacher_id".to_string(), DataType::Int32),
+                    ("teacher_name".to_string(), DataType::Utf8),
+                    ("teacher_subject".to_string(), DataType::Utf8),
+                ],
+                parquet_pruning: None,
+                skip_metadata: None,
+            },
+        )
+        .await?;
 
-    let df = ctx.sql(sql);
+    // let table_provider = ctx.register_table("teachers", Arc::new(df_future));
+
+    // println!("df_future: {:?}", df_future);
+
+    let df = ctx.sql(sql).await?;
+    // println!("df: {:?}", df);
+
+    let results = df.collect().await?;
+
+    println!("Reading file");
+    println!("results {:?}", results);
+
+    Ok(())
+
+    // println!("df: {:?}", df);
+    // let batches = df.collect();
+    // for batch in batches {
+    //     println!("{:?}", batch);
+    // }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     println!("Hello from main");
 
     create_file();
+
+    let sql_query = "SELECT * FROM teachers";
+    let res = read_file(sql_query).await;
+    println!("return val from read_file: {:?}", res);
 }
