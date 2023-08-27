@@ -2,11 +2,11 @@ use ::std::sync::Arc;
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use datafusion::error::DataFusionError;
-use datafusion::prelude::ParquetReadOptions;
-use datafusion::{self, prelude::SessionContext};
 use parquet::arrow::arrow_writer::ArrowWriter;
+use sqlparser::ast::{visit_statements, Statement};
+use sqlparser::dialect::GenericDialect;
 use std::fs::File;
+use std::ops::ControlFlow;
 
 fn create_file() {
     let schema = Schema::new(vec![
@@ -31,45 +31,29 @@ fn create_file() {
     writer.close().unwrap();
 }
 
-async fn read_file(sql: &str) -> Result<(), DataFusionError> {
-    println!("hello from top of read_file");
-    let ctx = SessionContext::new();
+pub fn parse(sql: &str) {
+    // Generate AST, identify statement type, then pass off function to appropriate parser.
 
-    let df_future = ctx
-        .read_parquet(
-            "./teachers.parquet",
-            ParquetReadOptions {
-                file_extension: ".parquet",
-                table_partition_cols: vec![
-                    ("teacher_id".to_string(), DataType::Int32),
-                    ("teacher_name".to_string(), DataType::Utf8),
-                    ("teacher_subject".to_string(), DataType::Utf8),
-                ],
-                parquet_pruning: None,
-                skip_metadata: None,
-            },
-        )
-        .await?;
+    let unparsed_statements =
+        sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql).unwrap();
 
-    // let table_provider = ctx.register_table("teachers", Arc::new(df_future));
+    let mut i = 1;
+    for statement in &unparsed_statements {
+        println!("\nstatement {}", i);
+        println!("statements: {:?}", statement);
+        i += 1;
 
-    // println!("df_future: {:?}", df_future);
+        match statement {
+            Statement::Query(query) => println!("found query"),
+            _ => println!("found not query"),
+        }
+    }
 
-    let df = ctx.sql(sql).await?;
-    // println!("df: {:?}", df);
-
-    let results = df.collect().await?;
-
-    println!("Reading file");
-    println!("results {:?}", results);
-
-    Ok(())
-
-    // println!("df: {:?}", df);
-    // let batches = df.collect();
-    // for batch in batches {
-    //     println!("{:?}", batch);
-    // }
+    let mut statements = vec![];
+    visit_statements(&unparsed_statements, |stmt| {
+        statements.push(format!("STATEMENT: {}", stmt));
+        ControlFlow::<()>::Continue(())
+    });
 }
 
 #[tokio::main]
@@ -78,7 +62,7 @@ async fn main() {
 
     create_file();
 
-    let sql_query = "SELECT * FROM teachers";
-    let res = read_file(sql_query).await;
+    let sql_query = "SELECT * FROM teachers;";
+    let res = parse(sql_query);
     println!("return val from read_file: {:?}", res);
 }
