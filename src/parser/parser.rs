@@ -1,6 +1,14 @@
-use sqlparser::ast::{self, Ident, SelectItem, Statement, Value};
+// use arrow::record_batch::RecordBatch;
+use arrow_array::RecordBatch;
+use arrow_array::{ArrayRef, Int32Array};
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+// use parquet::arrow::arrow_writer::ArrowWriter;
+// use parquet::file::properties::WriterProperties;
+// use parquet::arrow::arrow_reader;
+use sqlparser::ast::{self, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
-// use std::ops::ControlFlow;
+use std::fs::File;
+// use std::sync::Arc;
 
 // Top level parser
 // Retuns Optional Table
@@ -62,13 +70,31 @@ fn handle_select(select_statement: &Box<sqlparser::ast::Select>) {
     println!("txt_cols: {:?}\n", txt_cols);
     println!("table: {:?}\n ", table);
 
-    get_table(&table, "./teachers.parquet", &txt_cols)
+    let _res = get_table(&table, "teachers.parquet", &txt_cols);
 }
 
-fn get_table(table_name: &str, path: &str, columns: &Vec<&String>) {
+fn get_table(
+    table_name: &str,
+    path: &str,
+    columns: &Vec<&String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("\nhello from get_table");
     println!(
         "table_name: {}, path: {}, columns: {:?}",
         table_name, path, columns
     );
+
+    let file = File::open(path)?;
+
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+    println!("Converted arrow schema is: {}", builder.schema());
+
+    let mut reader = builder.build().unwrap();
+
+    let record_batch = reader.next().unwrap().unwrap();
+
+    println!("Read {} records.", record_batch.num_rows());
+    println!("{:?}", record_batch);
+
+    Ok(())
 }

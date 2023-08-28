@@ -1794,6 +1794,7 @@ name = "simple_db"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-array",
  "arrow-schema 45.0.0",
  "datafusion",
  "parquet",
