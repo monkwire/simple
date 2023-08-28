@@ -85,16 +85,24 @@ fn get_table(
             let mut col_vec = Vec::<String>::new();
             for i in 0..record_batch.num_rows() {
                 match col_type {
-                    arrow::datatypes::DataType::Int32 {} => println!("col_type is i32"),
-                    arrow::datatypes::DataType::Utf8 {} => println!("col_type is Utf8"),
-                    _ => println!("col_type is neither"),
-                }
-                if let Some(arc_array) = recordbatch_column {
-                    if let Some(str_array) = arc_array.as_any().downcast_ref::<StringArray>() {
-                        col_vec.push(str_array.value(i).to_string());
+                    arrow::datatypes::DataType::Int32 {} => {
+                        if let Some(arc_array) = recordbatch_column {
+                            if let Some(str_array) = arc_array.as_any().downcast_ref::<Int32Array>()
+                            {
+                                col_vec.push(str_array.value(i).to_string());
+                            }
+                        }
                     }
-                } else {
-                    continue;
+                    arrow::datatypes::DataType::Utf8 {} => {
+                        if let Some(arc_array) = recordbatch_column {
+                            if let Some(str_array) =
+                                arc_array.as_any().downcast_ref::<StringArray>()
+                            {
+                                col_vec.push(str_array.value(i).to_string());
+                            }
+                        }
+                    }
+                    _ => println!("col_type is neither"),
                 }
             }
             return_table.insert(col.to_string(), col_vec);
