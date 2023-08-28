@@ -1799,6 +1799,7 @@ dependencies = [
  "datafusion",
  "parquet",
  "sqlparser 0.36.1",
+ "table",
  "tokio",
 ]
 
@@ -1965,6 +1966,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "table"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf6f0801193a3fb518328d26e3341cc765fc722b05a36861091b70307bbb6601"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
