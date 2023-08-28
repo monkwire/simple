@@ -1,4 +1,4 @@
-use sqlparser::ast::{self, Statement};
+use sqlparser::ast::{self, Ident, SelectItem, Statement, Value};
 use sqlparser::dialect::GenericDialect;
 // use std::ops::ControlFlow;
 
@@ -15,7 +15,7 @@ pub fn parse(sql: &str) {
         sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql).unwrap();
 
     for statement in &unparsed_statements {
-        println!("statements: {:?}\n", statement);
+        // println!("statements: {:?}\n", statement);
 
         match statement {
             Statement::Query(query) => match *query.body.clone() {
@@ -25,16 +25,50 @@ pub fn parse(sql: &str) {
                 }
                 _ => println!("did not find select"),
             },
-            _ => println!("found not query"),
+            _ => println!("query not found"),
         }
     }
 }
 
 fn handle_select(select_statement: &Box<sqlparser::ast::Select>) {
-    println!("Hello from handle_select");
+    println!("\nHello from handle_select");
     let columns = &select_statement.projection;
-    let table = &select_statement.from;
 
-    println!("columns: {:?}", columns);
-    println!("table: {:?}", table);
+    let mut txt_cols: Vec<&String> = vec![];
+    let tables = &select_statement.from;
+    let table = tables[0].relation.to_string();
+
+    for column in columns {
+        match column {
+            SelectItem::UnnamedExpr(exp) => {
+                match exp {
+                    ast::Expr::Identifier(ident) => {
+                        println!("found ident: {:?}", ident.value);
+                        let val: &String = &ident.value;
+                        txt_cols.push(val);
+                    }
+                    _ => println!("did not find ident"),
+                }
+                println!("found unamed exp: {:?}", exp);
+            }
+            SelectItem::Wildcard(wild) => {
+                println!("found wildcard: {}", wild);
+            }
+            _ => println!("found neither exp nor wildcard"),
+        }
+    }
+
+    println!("columns: {:?}\n", columns);
+    println!("txt_cols: {:?}\n", txt_cols);
+    println!("table: {:?}\n ", table);
+
+    get_table(&table, "./teachers.parquet", &txt_cols)
+}
+
+fn get_table(table_name: &str, path: &str, columns: &Vec<&String>) {
+    println!("\nhello from get_table");
+    println!(
+        "table_name: {}, path: {}, columns: {:?}",
+        table_name, path, columns
+    );
 }
