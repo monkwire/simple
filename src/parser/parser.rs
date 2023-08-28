@@ -1,6 +1,7 @@
+use arrow_array::StringArray;
 // use arrow::record_batch::RecordBatch;
-use arrow_array::RecordBatch;
-use arrow_array::{ArrayRef, Int32Array};
+// use arrow_array::RecordBatch;
+// use arrow_array::{ArrayRef, Int32Array};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 // use parquet::arrow::arrow_writer::ArrowWriter;
 // use parquet::file::properties::WriterProperties;
@@ -87,11 +88,28 @@ fn get_table(
     let file = File::open(path)?;
 
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-    println!("Converted arrow schema is: {}", builder.schema());
+    let table_schema = builder.schema();
 
     let mut reader = builder.build().unwrap();
 
     let record_batch = reader.next().unwrap().unwrap();
+
+    for col in columns {
+        let recordbatch_column = record_batch.column_by_name(col);
+        for i in 0..record_batch.num_rows() {
+            println!("Reading col {:?} and row {:?}", col, i);
+            println!("recordbatch_column: {:?}", recordbatch_column);
+            if let Some(arc_array) = recordbatch_column {
+                if let Some(str_array) = arc_array.as_any().downcast_ref::<StringArray>() {
+                    println!("Some(str_array): {:?}", str_array.value(i));
+                }
+            } else {
+                continue;
+            }
+
+            // println!("{:?}", recordbatch_column.value(i));
+        }
+    }
 
     println!("Read {} records.", record_batch.num_rows());
     println!("{:?}", record_batch);

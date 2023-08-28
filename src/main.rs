@@ -39,7 +39,7 @@ async fn main() {
 
     create_file();
 
-    let sql_query = "SELECT teacher_id FROM teachers;";
+    let sql_query = "SELECT teacher_id, teacher_name FROM teachers;";
     let res = parse(sql_query);
     println!("return val from read_file: {:?}", res);
 }
