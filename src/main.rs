@@ -5,10 +5,7 @@ use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_writer::ArrowWriter;
 mod parser;
 use parser::parser::parse;
-// use sqlparser::ast::{visit_statements, Statement};
-// use sqlparser::dialect::GenericDialect;
 use std::fs::File;
-// use std::ops::ControlFlow;
 
 fn create_file() {
     let schema = Schema::new(vec![
@@ -35,11 +32,9 @@ fn create_file() {
 
 #[tokio::main]
 async fn main() {
-    println!("Hello from main");
-
     create_file();
 
-    let sql_query = "SELECT teacher_id, teacher_name FROM teachers;";
+    let sql_query = "SELECT teacher_name, teacher_subject FROM teachers;";
     let res = parse(sql_query);
     println!("return val from read_file: {:?}", res);
 }
