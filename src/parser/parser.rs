@@ -46,7 +46,7 @@ fn handle_select(
                 }
             }
             SelectItem::Wildcard(wild) => {
-                println!("found wildcard: {}", wild);
+                println!("wild: {:?}", wild);
             }
             _ => println!("found neither exp nor wildcard"),
         }
@@ -57,34 +57,43 @@ fn handle_select(
 }
 
 fn get_table(
-    table_name: &str,
+    _table_name: &str,
     path: &str,
     columns: &Vec<&String>,
 ) -> Result<HashMap<String, Vec<String>>, Box<dyn std::error::Error>> {
     let file = File::open(path)?;
 
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-    // let table_schema = builder.schema();
+    // println!("schema: {:?}\n", builder.schema().fields[0].data_type());
+
+    // let table_schema = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+    // println!("schema: {:?}", table_schema);
+    // println!("schema: {:?}", table_schema);
 
     let mut reader = builder.build().unwrap();
 
     let record_batch = reader.next().unwrap().unwrap();
+    let schema_ref = record_batch.schema();
 
     let mut return_table = HashMap::new();
 
     for col in columns {
-        let recordbatch_column = record_batch.column_by_name(col);
-        let mut col_vec = Vec::<String>::new();
-        for i in 0..record_batch.num_rows() {
-            if let Some(arc_array) = recordbatch_column {
-                if let Some(str_array) = arc_array.as_any().downcast_ref::<StringArray>() {
-                    col_vec.push(str_array.value(i).to_string());
+        if let col_index = schema_ref.index_of(col) {
+            let recordbatch_column = record_batch.column_by_name(col);
+            let col_type = schema_ref.field(col_index.unwrap()).data_type();
+            println!("col_name: {:?}, col_type: {:?}", col, col_type);
+            let mut col_vec = Vec::<String>::new();
+            for i in 0..record_batch.num_rows() {
+                if let Some(arc_array) = recordbatch_column {
+                    if let Some(str_array) = arc_array.as_any().downcast_ref::<StringArray>() {
+                        col_vec.push(str_array.value(i).to_string());
+                    }
+                } else {
+                    continue;
                 }
-            } else {
-                continue;
             }
+            return_table.insert(col.to_string(), col_vec);
         }
-        return_table.insert(col.to_string(), col_vec);
     }
     Ok(return_table)
 }
