@@ -1,4 +1,4 @@
-use arrow_array::{Int32Array, StringArray};
+use arrow_array::{Float32Array, Int32Array, StringArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use sqlparser::ast::{self, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
@@ -9,6 +9,8 @@ use std::fs::File;
 pub enum TableValue {
     StringValue(String),
     Int32Value(i32),
+    FloatValue(f32),
+    BoolValue(bool),
 }
 // Parse function returns a vec of the results of all SQL Statements. All successful statement
 // results return tables.
@@ -101,6 +103,14 @@ fn get_table(
                             col_vec.push(TableValue::StringValue(
                                 str_array.value(i as usize).to_string(),
                             ));
+                        }
+                    }
+                }
+                arrow::datatypes::DataType::Float32 {} => {
+                    if let Some(arc_array) = recordbatch_column {
+                        if let Some(float_array) = arc_array.as_any().downcast_ref::<Float32Array>()
+                        {
+                            col_vec.push(TableValue::FloatValue(float_array.value(i as usize)));
                         }
                     }
                 }
