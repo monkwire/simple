@@ -74,8 +74,13 @@ fn get_table(
 
     let mut return_table = HashMap::new();
 
-    let all_columns: Vec<&String> = schema_ref.fields().iter().map(|x| x.name()).collect();
-    let columns = if wildcard { &all_columns } else { columns };
+    if wildcard {
+        let columns = schema_ref.fields.iter().map(|x| x.name()).collect();
+        println!("{:?}", columns);
+        println!("schema_ref: {:?}", schema_ref);
+        println!();
+        println!("schema_ref.fields(): {:?}", schema_ref.fields()[0].name());
+    }
 
     for col in columns {
         let col_index = schema_ref.index_of(col);
