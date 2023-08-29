@@ -5,9 +5,16 @@ use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
 use std::fs::File;
 
+#[derive(Debug)]
+pub enum TableValue {
+    StringValue(String),
+    Int32Value(i32),
+}
 // Parse function returns a vec of the results of all SQL Statements. All successful statement
 // results return tables.
-pub fn parse(sql: &str) -> Vec<Result<HashMap<String, Vec<String>>, Box<dyn std::error::Error>>> {
+pub fn parse(
+    sql: &str,
+) -> Vec<Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>>> {
     // Separate SQL statements on ';'
     let statements = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql).unwrap();
 
@@ -31,7 +38,7 @@ pub fn parse(sql: &str) -> Vec<Result<HashMap<String, Vec<String>>, Box<dyn std:
 
 fn handle_select(
     select_statement: &Box<sqlparser::ast::Select>,
-) -> Result<HashMap<String, Vec<String>>, Box<dyn std::error::Error>> {
+) -> Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>> {
     let columns = &select_statement.projection;
 
     let mut txt_cols: Vec<&String> = vec![];
@@ -61,7 +68,7 @@ fn get_table(
     path: &str,
     columns: &Vec<&String>,
     wildcard: bool,
-) -> Result<HashMap<String, Vec<String>>, Box<dyn std::error::Error>> {
+) -> Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>> {
     let file = File::open(path)?;
 
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
@@ -81,21 +88,22 @@ fn get_table(
         let col_index = schema_ref.index_of(col);
         let recordbatch_column = record_batch.column_by_name(col);
         let col_type = schema_ref.field(col_index.unwrap()).data_type();
-        let mut col_vec = Vec::<String>::new();
+        let mut col_vec = Vec::<TableValue>::new();
         for i in 0..record_batch.num_rows() {
             match col_type {
                 arrow::datatypes::DataType::Int32 {} => {
                     if let Some(arc_array) = recordbatch_column {
-                        if let Some(str_array) = arc_array.as_any().downcast_ref::<Int32Array>() {
-                            // Saving i32s as strings. Needs to be fixed
-                            col_vec.push(str_array.value(i).to_string());
+                        if let Some(int_array) = arc_array.as_any().downcast_ref::<Int32Array>() {
+                            col_vec.push(TableValue::Int32Value(int_array.value(i as usize)))
                         }
                     }
                 }
                 arrow::datatypes::DataType::Utf8 {} => {
                     if let Some(arc_array) = recordbatch_column {
                         if let Some(str_array) = arc_array.as_any().downcast_ref::<StringArray>() {
-                            col_vec.push(str_array.value(i).to_string());
+                            col_vec.push(TableValue::StringValue(
+                                str_array.value(i as usize).to_string(),
+                            ));
                         }
                     }
                 }
