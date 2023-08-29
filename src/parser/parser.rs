@@ -1,4 +1,4 @@
-use arrow_array::{Float32Array, Int32Array, StringArray};
+use arrow_array::{BooleanArray, Float32Array, Int32Array, StringArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use sqlparser::ast::{self, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
@@ -111,6 +111,14 @@ fn get_table(
                         if let Some(float_array) = arc_array.as_any().downcast_ref::<Float32Array>()
                         {
                             col_vec.push(TableValue::FloatValue(float_array.value(i as usize)));
+                        }
+                    }
+                }
+                arrow::datatypes::DataType::Boolean {} => {
+                    if let Some(arc_array) = recordbatch_column {
+                        if let Some(bool_array) = arc_array.as_any().downcast_ref::<BooleanArray>()
+                        {
+                            col_vec.push(TableValue::BoolValue(bool_array.value(i as usize)));
                         }
                     }
                 }
