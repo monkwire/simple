@@ -3,7 +3,7 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use sqlparser::ast::{self, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{read_to_string, File};
 
 #[derive(Debug)]
 pub enum TableValue {
@@ -52,23 +52,23 @@ fn handle_select(
                     txt_cols.push(&ident.value);
                 }
             }
-            SelectItem::Wildcard(_w) => {
-                return get_table(&table, "teachers.parquet", &vec![], true)
-            }
+            SelectItem::Wildcard(_w) => return get_table(&table, &vec![], true),
             _ => println!("found neither exp nor wildcard"),
         }
     }
 
-    let res = get_table(&table, "teachers.parquet", &txt_cols, false);
-    res
+    get_table(&table, &txt_cols, false)
 }
 
 fn get_table(
-    _table_name: &str,
-    path: &str,
+    table_name: &str,
     columns: &Vec<&String>,
     wildcard: bool,
 ) -> Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>> {
+    println!("table_name: {}", table_name);
+    let path = format!("tables/{}.parquet", table_name);
+    println!("path: {}", path);
+
     let file = File::open(path)?;
 
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
