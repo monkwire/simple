@@ -3,7 +3,7 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use sqlparser::ast::{self, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
-use std::fs::{read_to_string, File};
+use std::fs::File;
 
 #[derive(Debug)]
 pub enum TableValue {
@@ -15,6 +15,7 @@ pub enum TableValue {
 pub fn parse(
     sql: &str,
 ) -> Vec<Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>>> {
+    println!("hello from parse");
     // Separate SQL statements on ';'
     let statements = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql).unwrap();
 
@@ -39,6 +40,8 @@ pub fn parse(
 fn handle_select(
     select_statement: &Box<sqlparser::ast::Select>,
 ) -> Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>> {
+    println!("hello from handle_select");
+
     let columns = &select_statement.projection;
 
     let mut txt_cols: Vec<&String> = vec![];
@@ -65,18 +68,12 @@ fn get_table(
     columns: &Vec<&String>,
     wildcard: bool,
 ) -> Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>> {
-    println!("table_name: {}", table_name);
     let path = format!("tables/{}.parquet", table_name);
-    println!("path: {}", path);
-
     let file = File::open(path)?;
 
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-
     let mut reader = builder.build().unwrap();
-
     let record_batch = reader.next().unwrap().unwrap();
-
     let schema_ref = record_batch.schema();
 
     let mut return_table = HashMap::new();
@@ -107,7 +104,7 @@ fn get_table(
                         }
                     }
                 }
-                _ => println!("col_type is neither"),
+                _ => continue,
             }
         }
         return_table.insert(col.to_string(), col_vec);
