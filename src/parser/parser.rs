@@ -17,9 +17,10 @@ pub enum TableValue {
 pub fn parse(
     sql: &str,
 ) -> Vec<Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>>> {
-    println!("hello from parse");
+    println!("\nhello from parse: {}\n", sql);
     // Separate SQL statements on ';'
     let statements = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql).unwrap();
+    // let statements = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql);
 
     // Create results table
     let mut tables = vec![];
@@ -32,6 +33,36 @@ pub fn parse(
                 if let ast::SetExpr::Select(sel) = &*query.body {
                     tables.push(handle_select(&sel));
                 }
+            }
+            Statement::CreateTable {
+                or_replace,
+                temporary,
+                external,
+                global,
+                if_not_exists,
+                transient,
+                name,
+                columns,
+                constraints,
+                hive_distribution,
+                hive_formats,
+                table_properties,
+                with_options,
+                file_format,
+                location,
+                query,
+                without_rowid,
+                like,
+                clone,
+                engine,
+                default_charset,
+                collation,
+                on_commit,
+                on_cluster,
+                order_by,
+                strict,
+            } => {
+                println!("found createtable");
             }
             _ => println!("Only Statement::Query implemented"),
         }
