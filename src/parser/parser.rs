@@ -1,29 +1,30 @@
-use arrow_array::{BooleanArray, Float32Array, Int32Array, StringArray};
+// use arrow::record_batch;
+use arrow_array::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use sqlparser::ast::{self, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
 use std::fs::File;
+use std::sync::Arc;
 
-#[derive(Debug)]
-pub enum TableValue {
-    StringValue(String),
-    Int32Value(i32),
-    FloatValue(f32),
-    BoolValue(bool),
-}
+// #[derive(Debug)]
+// pub enum TableValue {
+//     StringValue(String),
+//     Int32Value(i32),
+//     FloatValue(f32),
+//     BoolValue(bool),
+// }
 // Parse function returns a vec of the results of all SQL Statements. All successful statement
 // results return tables.
-pub fn parse(
-    sql: &str,
-) -> Vec<Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>>> {
-    println!("\nhello from parse: {}\n", sql);
+pub fn parse(sql: &str, path: &str) {
     // Separate SQL statements on ';'
     let statements = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql).unwrap();
-    // let statements = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql);
 
     // Create results table
-    let mut tables = vec![];
+    // let mut tables: Vec<HashMap<String, dyn arrow_array::Array>> = vec![];
+    // let mut tables: Vec<
+    //     Result<HashMap<String, &Arc<dyn arrow_array::Array>>, Box<dyn std::error::Error>>,
+    // > = vec![];
 
     // Send each statement to the appropriate handler, then store the results (Result<Table, Err>
     // in tables)
@@ -31,55 +32,40 @@ pub fn parse(
         match statement {
             Statement::Query(query) => {
                 if let ast::SetExpr::Select(sel) = &*query.body {
-                    tables.push(handle_select(&sel));
+                    // Create Record Batch Reader
+                    let table_name = sel.from[0].relation.to_string();
+                    let path = format!("tables/{}.parquet", table_name);
+                    let file = File::open(path).unwrap();
+                    let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)
+                        .unwrap()
+                        .build()
+                        .unwrap();
+                    let record_batch = reader.next().unwrap().unwrap();
+                    let table = handle_select(&sel, &record_batch);
+                    println!("table: {:?}", table);
+                    // tables.push();
                 }
             }
-            Statement::CreateTable {
-                or_replace,
-                temporary,
-                external,
-                global,
-                if_not_exists,
-                transient,
-                name,
-                columns,
-                constraints,
-                hive_distribution,
-                hive_formats,
-                table_properties,
-                with_options,
-                file_format,
-                location,
-                query,
-                without_rowid,
-                like,
-                clone,
-                engine,
-                default_charset,
-                collation,
-                on_commit,
-                on_cluster,
-                order_by,
-                strict,
-            } => {
-                println!("found createtable");
+            Statement::CreateTable { .. } => {
+                // println!("found createtable {:?}, {:?}", name, columns);
+                println!("found create table")
             }
             _ => println!("Only Statement::Query implemented"),
         }
     }
-    tables
+    // println!("tables: {:?}: ", tables);
 }
 
-fn handle_select(
-    select_statement: &Box<sqlparser::ast::Select>,
-) -> Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>> {
-    println!("hello from handle_select");
-
+fn handle_select<'a>(
+    select_statement: &'a Box<sqlparser::ast::Select>,
+    record_batch: &'a RecordBatch,
+) -> Result<
+    HashMap<&'a std::string::String, &'a Arc<dyn arrow_array::Array>>,
+    Box<dyn std::error::Error>,
+> {
     let columns = &select_statement.projection;
 
     let mut txt_cols: Vec<&String> = vec![];
-    let tables = &select_statement.from;
-    let table = tables[0].relation.to_string();
 
     for column in columns {
         match column {
@@ -88,75 +74,28 @@ fn handle_select(
                     txt_cols.push(&ident.value);
                 }
             }
-            SelectItem::Wildcard(_w) => return get_table(&table, &vec![], true),
+            SelectItem::Wildcard(_w) => return get_table(&vec![], true, &record_batch),
             _ => println!("found neither exp nor wildcard"),
         }
     }
 
-    get_table(&table, &txt_cols, false)
+    get_table(&txt_cols, false, &record_batch)
 }
 
-fn get_table(
-    table_name: &str,
-    columns: &Vec<&String>,
-    wildcard: bool,
-) -> Result<HashMap<String, Vec<TableValue>>, Box<dyn std::error::Error>> {
-    let path = format!("tables/{}.parquet", table_name);
-    let file = File::open(path)?;
-
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-    let mut reader = builder.build().unwrap();
-    let record_batch = reader.next().unwrap().unwrap();
-    let schema_ref = record_batch.schema();
-
+fn get_table<'a>(
+    columns: &Vec<&'a String>,
+    _wildcard: bool,
+    record_batch: &'a RecordBatch,
+) -> Result<
+    HashMap<&'a std::string::String, &'a Arc<dyn arrow_array::Array>>,
+    Box<dyn std::error::Error>,
+> {
     let mut return_table = HashMap::new();
 
-    let all_columns: Vec<&String> = schema_ref.fields().iter().map(|x| x.name()).collect();
-    let columns = if wildcard { &all_columns } else { columns };
-
-    for col in columns {
-        let col_index = schema_ref.index_of(col);
-        let recordbatch_column = record_batch.column_by_name(col);
-        let col_type = schema_ref.field(col_index.unwrap()).data_type();
-        let mut col_vec = Vec::<TableValue>::new();
-        for i in 0..record_batch.num_rows() {
-            match col_type {
-                arrow::datatypes::DataType::Int32 {} => {
-                    if let Some(arc_array) = recordbatch_column {
-                        if let Some(int_array) = arc_array.as_any().downcast_ref::<Int32Array>() {
-                            col_vec.push(TableValue::Int32Value(int_array.value(i as usize)))
-                        }
-                    }
-                }
-                arrow::datatypes::DataType::Utf8 {} => {
-                    if let Some(arc_array) = recordbatch_column {
-                        if let Some(str_array) = arc_array.as_any().downcast_ref::<StringArray>() {
-                            col_vec.push(TableValue::StringValue(
-                                str_array.value(i as usize).to_string(),
-                            ));
-                        }
-                    }
-                }
-                arrow::datatypes::DataType::Float32 {} => {
-                    if let Some(arc_array) = recordbatch_column {
-                        if let Some(float_array) = arc_array.as_any().downcast_ref::<Float32Array>()
-                        {
-                            col_vec.push(TableValue::FloatValue(float_array.value(i as usize)));
-                        }
-                    }
-                }
-                arrow::datatypes::DataType::Boolean {} => {
-                    if let Some(arc_array) = recordbatch_column {
-                        if let Some(bool_array) = arc_array.as_any().downcast_ref::<BooleanArray>()
-                        {
-                            col_vec.push(TableValue::BoolValue(bool_array.value(i as usize)));
-                        }
-                    }
-                }
-                _ => continue,
-            }
-        }
-        return_table.insert(col.to_string(), col_vec);
+    for col_name in columns {
+        let recordbatch_column = record_batch.column_by_name(col_name);
+        println!("recordbatch_column: {:?}", recordbatch_column);
+        return_table.insert(*col_name, recordbatch_column.unwrap());
     }
     Ok(return_table)
 }

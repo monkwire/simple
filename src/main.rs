@@ -47,7 +47,7 @@ fn main() {
         "CREATE TABLE books (ISBN CHAR PRIMARY KEY, Title CHAR NOT NULL, Author CHAR NOT NULL, Genre CHAR NOT NULL);",
     ];
     for sql_query in sql_queries {
-        let res = parse(sql_query);
+        let res = parse(sql_query, "../teachers.parquet");
         println!("\n parsing: {}:\n{:?}", sql_query, res);
     }
 }
