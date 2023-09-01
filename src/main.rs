@@ -41,14 +41,16 @@ fn main() {
     create_file();
     let sql_queries = vec![
         "SELECT teacher_name, teacher_id FROM teachers;",
-        "SELECT * FROM teachers;",
+        // "SELECT * FROM teachers;",
         "SELECT teacher_id FROM teachers; SELECT teacher_subject FROM teachers;",
-        "SELECT * FROM foods;",
-        "CREATE TABLE books (ISBN CHAR PRIMARY KEY, Title CHAR NOT NULL, Author CHAR NOT NULL, Genre CHAR NOT NULL);",
+        // "SELECT * FROM foods;",
+        // "CREATE TABLE books (ISBN CHAR PRIMARY KEY, Title CHAR NOT NULL, Author CHAR NOT NULL, Genre CHAR NOT NULL);",
     ];
     for sql_query in sql_queries {
-        let res = parse(sql_query, "../teachers.parquet");
-        println!("\n parsing: {}:\n{:?}", sql_query, res);
+        let res = parse(sql_query);
+        println!("{}", "=".repeat(50));
+        println!("\n RAW SQL: '{}'\n", sql_query);
+        println!("{:?}\n", res);
     }
 }
 
