@@ -40,9 +40,10 @@ fn create_file() {
 fn main() {
     create_file();
     let sql_queries = vec![
+        "SELECT teacher_name, teacher_subject FROM teachers;",
         "SELECT teacher_name, teacher_id FROM teachers;",
         // "SELECT * FROM teachers;",
-        "SELECT teacher_id FROM teachers; SELECT teacher_subject FROM teachers;",
+        // "SELECT teacher_id FROM teachers; SELECT teacher_subject FROM teachers;",
         // "SELECT * FROM foods;",
         // "CREATE TABLE books (ISBN CHAR PRIMARY KEY, Title CHAR NOT NULL, Author CHAR NOT NULL, Genre CHAR NOT NULL);",
     ];

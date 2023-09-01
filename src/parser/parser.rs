@@ -1,4 +1,6 @@
-use arrow::array::ArrayData;
+use arrow::array::{self, ArrayData};
+use arrow::datatypes::DataType;
+use arrow_array::{Int32Array, PrimitiveArray, StringArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use sqlparser::ast::{self, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
@@ -16,7 +18,9 @@ pub fn parse(
         match statement {
             Statement::Query(query) => {
                 if let ast::SetExpr::Select(sel) = &*query.body {
-                    tables.push(handle_select(&sel));
+                    let table = handle_select(&sel);
+                    let table_string = generate_table_string(table.unwrap());
+                    // tables.push(table);
                 }
             }
             Statement::CreateTable { .. } => {
@@ -79,6 +83,27 @@ fn get_table<'a>(
         let recordbatch_column = record_batch.column_by_name(col_name);
         return_table.insert(col_name.to_string(), recordbatch_column.unwrap().to_data());
     }
-    println!("{}", "-".repeat(50));
+
     Ok(return_table)
+}
+
+fn generate_table_string(arraydata: HashMap<String, ArrayData>) {
+    println!("handle_array_data: {:?}", arraydata);
+
+    let table_string = String::new();
+
+    for (col_name, arr) in &arraydata {
+        println!("arr datatype: {:?}", arr.data_type());
+        match arr.data_type() {
+            DataType::Utf8 => {
+                let string_array = StringArray::from(arr.clone());
+                println!("{:?}", string_array);
+            }
+            DataType::Int32 => {
+                let int_array = Int32Array::from(arr.clone());
+                println!("{:?}", int_array);
+            }
+            _ => println!("unsupported"),
+        };
+    }
 }
