@@ -51,19 +51,19 @@ fn main() {
                 Author VARCHAR(255) NOT NULL,
                 Genre VARCHAR(100) NOT NULL
         );",
-        "SELECT ISBN, Title, Author, Genre FROM books;",
-        "INSERT INTO books (ISBN, Title, Author, Genre) VALUES
-            ('978-1234567890', 'The Great Adventure', 'John Doe', 'Adventure'),
-            ('978-0987654321', 'Mysteries of the Unknown', 'Jane Smith', 'Mystery'),
-            ('978-1122334455', 'Programming for Beginners', 'Alan Turing', 'Technology'),
-            ('978-5566778899', 'The Cosmic Dance', 'Stephen Hawking', 'Science');
-    ",
+        //     "SELECT ISBN, Title, Author, Genre FROM books;",
+        //     "INSERT INTO books (ISBN, Title, Author, Genre) VALUES
+        //         ('978-1234567890', 'The Great Adventure', 'John Doe', 'Adventure'),
+        //         ('978-0987654321', 'Mysteries of the Unknown', 'Jane Smith', 'Mystery'),
+        //         ('978-1122334455', 'Programming for Beginners', 'Alan Turing', 'Technology'),
+        //         ('978-5566778899', 'The Cosmic Dance', 'Stephen Hawking', 'Science');
+        // ",
     ];
     for sql_query in sql_queries {
         let res = parse(sql_query);
         println!("{}", "=".repeat(50));
         println!("\n RAW SQL: '{}'\n", sql_query);
-        println!("{:?}\n", res);
+        println!("res: {:?}\n", res);
     }
 }
 

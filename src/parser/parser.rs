@@ -1,9 +1,11 @@
-use arrow::array::{self, ArrayData};
+use arrow::array::ArrayData;
 use arrow::datatypes::DataType as arrow_datatype;
 use arrow::datatypes::{Field, Schema};
-use arrow_array::{Int32Array, PrimitiveArray, RecordBatch, StringArray};
+use arrow::record_batch;
+use arrow_array::{Int32Array, RecordBatch, StringArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
+use parquet::record;
 use sqlparser::ast::{self, ColumnDef, DataType, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
@@ -22,61 +24,24 @@ pub fn parse(
             Statement::Query(query) => {
                 if let ast::SetExpr::Select(sel) = &*query.body {
                     let table = handle_select(&sel);
-                    let table_string = generate_table_string(table.unwrap());
-                    // tables.push(table);
+                    tables.push(table);
                 }
             }
             Statement::CreateTable {
-                or_replace,
-                temporary,
-                external,
-                global,
-                if_not_exists,
-                transient,
                 name,
                 columns,
-                constraints,
-                hive_distribution,
-                hive_formats,
-                table_properties,
-                with_options,
-                file_format,
-                location,
                 query,
-                without_rowid,
-                like,
-                clone,
-                engine,
-                default_charset,
-                collation,
-                on_commit,
-                on_cluster,
-                order_by,
-                strict,
+                ..
             } => {
                 println!("\n\ncreate_table name: {:?}", name);
                 println!("\n\ncreate_table columns: {:?}", columns);
                 println!("\n\ncreate_table query: {:?}", query);
-                println!("\n\ncreate_table location: {:?}", location);
                 handle_create_table(name.to_string(), columns);
+                let table = get_table(&name.to_string(), &Vec::new(), true);
+                tables.push(table);
             }
-            Statement::Insert {
-                or,
-                into,
-                table_name,
-                columns,
-                overwrite,
-                source,
-                partitioned,
-                after_columns,
-                table,
-                on,
-                returning,
-            } => {
-                println!(
-                    "Insert: into: {:?}, table_name: {:?}, columns: {:?}, after_columns: {:?}, source: {:?}",
-                    into, table_name, columns, after_columns, source
-                );
+            Statement::Insert { .. } => {
+                println!("");
             }
 
             _ => println!("SQL type not yet supported"),
@@ -87,8 +52,8 @@ pub fn parse(
 
 fn convert_sqlparserdatatype_to_arrowdatatype(sqlparserdatatype: &DataType) -> arrow_datatype {
     match sqlparserdatatype {
-        sqlparser::ast::DataType::Varchar(vc) => arrow::datatypes::DataType::Utf8,
-        sqlparser::ast::DataType::Int(i) => arrow::datatypes::DataType::Int32,
+        sqlparser::ast::DataType::Varchar(_vc) => arrow::datatypes::DataType::Utf8,
+        sqlparser::ast::DataType::Int(_i) => arrow::datatypes::DataType::Int32,
         _ => arrow::datatypes::DataType::Utf8,
     }
 }
@@ -104,7 +69,6 @@ fn handle_create_table(table_name: String, columns: &Vec<ColumnDef>) {
         schema_fields.push(Field::new(name, datatype, false));
     }
     let schema = Schema::new(schema_fields);
-    println!("schema: {:?}", schema);
 
     let batch = RecordBatch::new_empty(Arc::new(schema.clone()));
     let file = File::create(format!("tables/{}.parquet", table_name)).unwrap();
@@ -150,39 +114,41 @@ fn get_table<'a>(
     columns: &Vec<&'a String>,
     _wildcard: bool,
 ) -> Result<HashMap<std::string::String, ArrayData>, Box<dyn std::error::Error>> {
+    println!("hello from get_table");
     let path = format!("tables/{}.parquet", table_name);
     let file = File::open(path).unwrap();
     let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)
         .unwrap()
         .build()
         .unwrap();
-    let record_batch = reader.next().unwrap().unwrap();
 
     let mut return_table = HashMap::new();
-
-    for col_name in columns {
-        let recordbatch_column = record_batch.column_by_name(col_name);
-        return_table.insert(col_name.to_string(), recordbatch_column.unwrap().to_data());
+    let next_reader = reader.next();
+    if let Some(record_batch_option) = next_reader {
+        if let Ok(record_batch) = record_batch_option {
+            for col_name in columns {
+                let recordbatch_column = record_batch.column_by_name(col_name);
+                return_table.insert(col_name.to_string(), recordbatch_column.unwrap().to_data());
+            }
+        }
     }
+    // let record_batch = reader.next().unwrap().unwrap();
 
+    println!("returning from get table:");
+    println!("{:?}", return_table);
     Ok(return_table)
 }
 
 fn generate_table_string(arraydata: HashMap<String, ArrayData>) {
-    println!("handle_array_data: {:?}", arraydata);
+    let _table_string = String::new();
 
-    let table_string = String::new();
-
-    for (col_name, arr) in &arraydata {
-        println!("arr datatype: {:?}", arr.data_type());
+    for (_col_name, arr) in &arraydata {
         match arr.data_type() {
             arrow_datatype::Utf8 => {
-                let string_array = StringArray::from(arr.clone());
-                println!("{:?}", string_array);
+                let _string_array = StringArray::from(arr.clone());
             }
             arrow_datatype::Int32 => {
-                let int_array = Int32Array::from(arr.clone());
-                println!("{:?}", int_array);
+                let _int_array = Int32Array::from(arr.clone());
             }
             _ => println!("unsupported"),
         };
