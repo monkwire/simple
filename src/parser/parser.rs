@@ -1,11 +1,10 @@
 use arrow::array::ArrayData;
 use arrow::datatypes::DataType as arrow_datatype;
 use arrow::datatypes::{Field, Schema};
-use arrow::record_batch;
 use arrow_array::{Int32Array, RecordBatch, StringArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
-use parquet::record;
+use parquet::file::reader::{FileReader, SerializedFileReader};
 use sqlparser::ast::{self, ColumnDef, DataType, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
@@ -37,7 +36,7 @@ pub fn parse(
                 println!("\n\ncreate_table columns: {:?}", columns);
                 println!("\n\ncreate_table query: {:?}", query);
                 handle_create_table(name.to_string(), columns);
-                let table = get_table(&name.to_string(), &Vec::new(), true);
+                let table = get_table(&name.to_string(), Vec::new(), true);
                 tables.push(table);
             }
             Statement::Insert { .. } => {
@@ -82,21 +81,17 @@ fn handle_select<'a>(
 ) -> Result<HashMap<std::string::String, ArrayData>, Box<dyn std::error::Error>> {
     let columns = &select_statement.projection;
 
-    let mut txt_cols: Vec<&String> = vec![];
+    let mut column_names: Vec<String> = vec![];
 
     for column in columns {
         match column {
             SelectItem::UnnamedExpr(exp) => {
                 if let ast::Expr::Identifier(ident) = exp {
-                    txt_cols.push(&ident.value);
+                    column_names.push(ident.value.clone());
                 }
             }
             SelectItem::Wildcard(_w) => {
-                return get_table(
-                    &select_statement.from[0].relation.to_string(),
-                    &vec![],
-                    true,
-                )
+                return get_table(&select_statement.from[0].relation.to_string(), vec![], true)
             }
             _ => println!("found neither exp nor wildcard"),
         }
@@ -104,39 +99,58 @@ fn handle_select<'a>(
 
     get_table(
         &select_statement.from[0].relation.to_string(),
-        &txt_cols,
+        column_names,
         false,
     )
 }
 
-fn get_table<'a>(
-    table_name: &str,
-    columns: &Vec<&'a String>,
-    _wildcard: bool,
-) -> Result<HashMap<std::string::String, ArrayData>, Box<dyn std::error::Error>> {
-    println!("hello from get_table");
+fn get_all_column_names(table_name: &str) -> Vec<String> {
     let path = format!("tables/{}.parquet", table_name);
-    let file = File::open(path).unwrap();
-    let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)
-        .unwrap()
-        .build()
-        .unwrap();
-
-    let mut return_table = HashMap::new();
-    let next_reader = reader.next();
-    if let Some(record_batch_option) = next_reader {
-        if let Ok(record_batch) = record_batch_option {
-            for col_name in columns {
-                let recordbatch_column = record_batch.column_by_name(col_name);
-                return_table.insert(col_name.to_string(), recordbatch_column.unwrap().to_data());
-            }
+    let mut columns = Vec::new();
+    if let Ok(file) = File::open(&path) {
+        let reader = SerializedFileReader::new(file).unwrap();
+        let schema = reader.metadata().file_metadata().schema();
+        for field in schema.get_fields().iter() {
+            columns.push(field.name().to_string());
         }
     }
-    // let record_batch = reader.next().unwrap().unwrap();
 
-    println!("returning from get table:");
-    println!("{:?}", return_table);
-    Ok(return_table)
+    columns
+}
+
+fn get_table<'a>(
+    table_name: &str,
+    columns: Vec<String>,
+    wildcard: bool,
+) -> Result<HashMap<std::string::String, ArrayData>, Box<dyn std::error::Error>> {
+    if wildcard {
+        get_table(table_name, get_all_column_names(table_name), false)
+    } else {
+        let path = format!("tables/{}.parquet", table_name);
+        let mut return_table = HashMap::new();
+        if let Ok(file) = File::open(path) {
+            let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)
+                .unwrap()
+                .build()
+                .unwrap();
+
+            let next_reader = reader.next();
+            if let Some(record_batch_option) = next_reader {
+                if let Ok(record_batch) = record_batch_option {
+                    let schema = record_batch.schema();
+                    println!("schema inside of get_table: {:?}", schema);
+                    for col_name in columns {
+                        let recordbatch_column = record_batch.column_by_name(&col_name);
+                        return_table
+                            .insert(col_name.to_string(), recordbatch_column.unwrap().to_data());
+                    }
+                }
+            }
+            // let record_batch = reader.next().unwrap().unwrap();
+        }
+        println!("returning from get table:\n {:?}", return_table);
+        Ok(return_table)
+    }
 }
 
 fn generate_table_string(arraydata: HashMap<String, ArrayData>) {

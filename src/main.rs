@@ -42,9 +42,9 @@ fn main() {
     let sql_queries = vec![
         "SELECT teacher_name, teacher_subject FROM teachers;",
         "SELECT teacher_name, teacher_id FROM teachers;",
-        // "SELECT * FROM teachers;",
-        // "SELECT teacher_id FROM teachers; SELECT teacher_subject FROM teachers;",
-        // "SELECT * FROM foods;",
+        "SELECT * FROM teachers;",
+        "SELECT teacher_id FROM teachers; SELECT teacher_subject FROM teachers;",
+        "SELECT * FROM foods;",
         "CREATE TABLE books(
             ISBN VARCHAR(13) PRIMARY KEY,
                 Title VARCHAR(255) NOT NULL,
