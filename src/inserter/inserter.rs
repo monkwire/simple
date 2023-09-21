@@ -5,6 +5,7 @@ use arrow_schema::Schema;
 use parquet::data_type::Int32Type;
 use arrow_array::ArrayRef;
 use parquet::file::serialized_reader::SerializedFileReader;
+use parquet::file::writer::SerializedFileWriter;
 use parquet::file::writer::SerializedRowGroupWriter;
 use parquet::file::writer::TrackedWrite;
 use parquet::schema::types::SchemaDescriptor;
@@ -18,49 +19,32 @@ io::{Seek, SeekFrom},
 
 pub fn insert(path: &str) -> Result<(), std::io::Error> {
     // Open file as read and write
-    let mut file = File::options()
+    let mut file_read = File::options()
         .read(true)
         .write(true)
         .truncate(false)
         .open(path)?;
 
 
-    // Set next write pkinter 8 bytes from the end. This overwrites the metadata at the end.
-    // file.seek(SeekFrom::End(-8))?;
-    let reader = SerializedFileReader::new(file).unwrap();
-
-    let parquet_metadata = parquet::file::reader::FileReader::metadata(&reader);
-    // println!("parquet_metadata: {:?}", parquet_metadata);
-    println!("metadata.schema: {:?}", parquet_metadata.file_metadata().schema());
-
-    // let row_group_reader = reader.get_row_group(0).unwrap();
-
+    let mut file_write = file_read.try_clone().unwrap();
 
     // Create a `SchemaDescriptor` from the parsed `Type`.
-    // let schema_desc_ptr = Arc::new(SchemaDescriptor::new(Arc::new(schema)));
+    let reader = SerializedFileReader::new(file_read).unwrap();
+    let parquet_metadata = parquet::file::reader::FileReader::metadata(&reader);
+    let schema = parquet_metadata.file_metadata().schema();
+    println!("schema: {:?}", schema);
 
+    
+    //
+    // Set next write pointer 8 bytes from the end. This overwrites the metadata at the end.
+    file_write.seek(SeekFrom::End(-8))?;
 
-    // file.write_all("__something new__".as_bytes())?;
-    // 
-    // let type_builder = GroupTypeBuilder::new("teachers");
-    // let teacher_type = type_builder.with_fields(&mut vec![
-    //         Arc::new(GroupTypeBuilder::new("teacher_name")),
-    //         Arc::new(GroupTypeBuilder::new("teacher_id")),
-    //         Arc::new(GroupTypeBuilder::new("teacher_subject"))]);
-    // 
-    // teacher_type.build();
-    //
-    //
-    //
-    // let tp: Arc<Type> = Arc::new();
-    // let schema_desc_ptr: SchemaDescPtr = Arc::new(SchemaDescriptor::new(tp));
-    // // Create group_ writer, which can write to 
-    // let mut writer = SerializedRowGroupWriter::new(
-    //     schema_desc_ptr,
-    //     Arc::new(WriterProperties::new()),
-    //     &mut TrackedWrite::new(file),
-    //     None,
-    // );
+    // Create group_ writer, which can write to 
+    let mut writer = SerializedFileWriter::new(
+        file_write,
+        Arc::new(schema.clone()),
+        Arc::new(WriterProperties::new()),
+    );
 
     // Manually add appropriate rows
     let new_rows = vec![
