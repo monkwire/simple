@@ -5,11 +5,13 @@ use arrow_array::{Int32Array, RecordBatch, StringArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::file::reader::{FileReader, SerializedFileReader};
-use sqlparser::ast::{self, ColumnDef, DataType, SelectItem, Statement};
+use sqlparser::ast::Query;
+use sqlparser::ast::{self, ColumnDef, DataType, Ident, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
 use std::fs::File;
 use std::sync::Arc;
+
 
 pub fn parse(
     sql: &str,
@@ -39,19 +41,102 @@ pub fn parse(
                 let table = get_table(&name.to_string(), Vec::new(), true);
                 tables.push(table);
             }
-            Statement::Insert { .. } => {
-                println!("");
-            }
-
+            Statement::Insert {
+                or,
+                into,
+                table_name,
+                columns,
+                overwrite,
+                source,
+                partitioned,
+                after_columns,
+                table,
+                on,
+                returning,
+            } => handle_insert(table_name.to_string(), columns, source),
             _ => println!("SQL type not yet supported"),
         }
     }
     tables
 }
 
+fn handle_insert(table_name: String, column_names: &Vec<Ident>, source_data: &Box<Query>) {
+    // Create RecordBatch from existing data
+    let path = format!("tables/{}.parquet", table_name);
+    let file = File::open(&path).unwrap();
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+    let mut reader = builder.build().unwrap();
+
+    if let Some(reader_option) = reader.next() {
+        println!("\nreader_option: {:?}", reader_option);
+        if let Ok(record_batch_one) = reader_option {
+            let schema = record_batch_one.schema();
+
+            // let arrow_writer = ArrowWriter::try_new(file, schema.clone(), None);
+
+            // Grab Schema from existing RecordBatch
+            let record_batch_two = RecordBatch::try_new(
+                schema.clone(),
+                vec![
+                    Arc::new(Int32Array::from(vec![7, 8])),
+                    Arc::new(StringArray::from(vec!["James", "Stevens"])),
+                    Arc::new(StringArray::from(vec!["Anthropology", "German"])),
+                ],
+            );
+            // source_data = &Box<Query> -> Query -> Body = Box<SetExpr> -> SetExpr -> Values -> rows
+            // let body = *source_data.body.clone();
+            // match body {
+            //     SetExpr::Values(v) => {
+            //         for row in v.rows {
+            //             println!("row: {:?}", row);
+            //             for (i, val) in row.iter().enumerate() {
+            //                 println!("i: {:?}; val: {:?}", i, val.to_string());
+            //             }
+            //         }
+            //     }
+            //     _ => println!("did not find values"),
+            // }
+
+            // Create Second RecordBatch using existing Schema and source_data
+
+            let concatenated_columns = record_batch_one
+                .schema()
+                .fields()
+                .iter()
+                .enumerate()
+                .map(|(i, _)| {
+                    let col1 = record_batch_one.column(i);
+                    let col2 = record_batch_two.as_ref().unwrap().column(i);
+                    arrow::compute::concat(&[col1, col2]).unwrap()
+                })
+                .collect::<Vec<_>>();
+
+            let concatenated_batches =
+                RecordBatch::try_new(schema.clone(), concatenated_columns).unwrap();
+            println!("concatenated_batches: {:?}", concatenated_batches);
+
+            let file_to_write = File::open(&path);
+            println!("file_to_write: {:?}", file_to_write);
+
+            if let Ok(f) = file_to_write {
+                let mut writer =
+                    ArrowWriter::try_new(f, concatenated_batches.schema(), None).unwrap();
+
+                writer.write(&concatenated_batches).expect("Writing batch");
+                writer.close().unwrap();
+                println!("file written");
+            } else {
+                println!("file not written");
+            }
+
+            // Write concatenated_batches'
+        }
+    }
+}
+
 fn convert_sqlparserdatatype_to_arrowdatatype(sqlparserdatatype: &DataType) -> arrow_datatype {
     match sqlparserdatatype {
-        sqlparser::ast::DataType::Varchar(_vc) => arrow::datatypes::DataType::Utf8,
+        sqlparser::ast::DataType::Varchar(_char_len) => arrow::datatypes::DataType::Utf8,
         sqlparser::ast::DataType::Int(_i) => arrow::datatypes::DataType::Int32,
         _ => arrow::datatypes::DataType::Utf8,
     }
