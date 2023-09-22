@@ -7,37 +7,40 @@ use arrow_array::ArrayRef;
 use inserter::inserter::insert;
 use parquet::arrow::arrow_writer::ArrowWriter;
 mod parser;
-// use parser::parser::parse;
+use parser::parser::parse;
 mod inserter;
 
 fn create_file() {
     let schema = Schema::new(vec![
-        Field::new("teacher_id", DataType::Int32, false),
-        Field::new("teacher_name", DataType::Utf8, false),
-        Field::new("teacher_subject", DataType::Utf8, true),
+        Field::new("number_col_1", DataType::Int32, false),
+        Field::new("number_col_2", DataType::Int32, false),
+        Field::new("number_col_3", DataType::Int32, true),
     ]);
 
     let my_vec = vec![
         Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef,
-        Arc::new(StringArray::from(vec!["Jones", "Johson", "Smith"])) as ArrayRef,
-        Arc::new(StringArray::from(vec!["spanish", "science", "english"])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![4, 5, 6])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![7, 8, 9])) as ArrayRef,
     ];
 
     let batch = RecordBatch::try_new(Arc::new(schema.clone()), my_vec).unwrap();
 
-    let file = File::create("tables/teachers.parquet").unwrap();
+    let file = File::create("tables/numbers.parquet").unwrap();
     let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
     let res = writer.write(&batch);
     writer.close().unwrap();
     println!("File created succesfully");
-    println!("write res: {:?}", res);
-    let insert_res = insert("tables/teachers.parquet");
-    println!("insert res: {:?}", insert_res);
+    // println!("write res: {:?}", res);
 }
 
 
 fn main() {
-    create_file();
+    // create_file();
+
+    let insert_res = insert("tables/numbers.parquet");
+    println!("insert_res: {:?}", insert_res);
+    parse("SELECT * FROM numbers");
+
 }
 
 
