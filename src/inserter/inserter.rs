@@ -4,6 +4,7 @@ use arrow_array::ArrayRef;
 use arrow_array::Int32Array;
 use arrow_array::StringArray;
 use arrow_schema::Schema;
+use parquet::column::writer::ColumnCloseResult;
 use parquet::data_type::FixedLenByteArray;
 use parquet::data_type::FixedLenByteArrayType;
 use parquet::data_type::Int32Type;
@@ -58,10 +59,38 @@ pub fn insert_by_join(path_1: &str, path_2: &str) {
     row_group_writer.close().unwrap();
     writer.close().unwrap();
 
-    
 
-        
     // create file_2
+    let path_2 = Path::new(path_2);
+    let message_type = "
+        message schema {
+        REQUIRED INT32 b;
+        }";
+
+    let schema = Arc::new(parse_message_type(message_type).unwrap());
+    let file = fs::File::create(&path_2).unwrap();
+    let mut writer = SerializedFileWriter::new(file, schema, Default::default()).unwrap();
+    let mut row_group_writer = writer.next_row_group().unwrap();
+    while let Some(mut col_writer) = row_group_writer.next_column().unwrap() {
+        let values: [i32; 5] = [5, 6, 7, 8, 9];
+
+
+        // let gen_col_writer = col_writer.typed();
+        //
+        // 
+        // let col_close = gen_col_writer.close().unwrap();
+
+        let file_1 = File::open(&path_1).unwrap();
+
+        row_group_writer.append_column(&file_1, col_writer.typed().close().unwrap());
+        row_group_writer.close().unwrap();
+    }
+
+
+    writer.close().unwrap();
+
+
+
 
 
     // append file_1 to file_2
