@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::sync::Arc;
 
-
 pub fn parse(
     sql: &str,
 ) -> Vec<Result<HashMap<std::string::String, ArrayData>, Box<dyn std::error::Error>>> {

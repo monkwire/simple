@@ -1,26 +1,45 @@
-use std::fs::File;
 use ::std::sync::Arc;
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_array::ArrayRef;
-use inserter::inserter::insert;
+use inserter::inserter::{insert, insert_by_join};
 use parquet::arrow::arrow_writer::ArrowWriter;
+use std::fs::File;
 mod parser;
 use parser::parser::parse;
 mod inserter;
 
-fn create_file() {
+fn create_file_1() {
     let schema = Schema::new(vec![
-        Field::new("number_col_1", DataType::Int32, false),
-        Field::new("number_col_2", DataType::Int32, false),
-        Field::new("number_col_3", DataType::Int32, true),
+        Field::new("number_col_1", DataType::Int32, true),
+        Field::new("number_col_2", DataType::Int32, true),
     ]);
 
     let my_vec = vec![
-        Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef,
-        Arc::new(Int32Array::from(vec![4, 5, 6])) as ArrayRef,
-        Arc::new(Int32Array::from(vec![7, 8, 9])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![3, 6])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![7, 8])) as ArrayRef,
+    ];
+
+    let batch = RecordBatch::try_new(Arc::new(schema.clone()), my_vec).unwrap();
+
+    let file = File::create("tables/numbers1.parquet").unwrap();
+    let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
+    let res = writer.write(&batch);
+    writer.close().unwrap();
+    println!("File created succesfully");
+    println!("initial write res: {:?}", res);
+}
+
+fn create_file_2() {
+    let schema = Schema::new(vec![
+        Field::new("number_col_1", DataType::Int32, true),
+        Field::new("number_col_2", DataType::Int32, true),
+    ]);
+
+    let my_vec = vec![
+        Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![4, 5])) as ArrayRef,
     ];
 
     let batch = RecordBatch::try_new(Arc::new(schema.clone()), my_vec).unwrap();
@@ -30,20 +49,28 @@ fn create_file() {
     let res = writer.write(&batch);
     writer.close().unwrap();
     println!("File created succesfully");
-    // println!("write res: {:?}", res);
+    println!("initial write res: {:?}", res);
 }
-
 
 fn main() {
-    // create_file();
 
-    let insert_res = insert("tables/numbers.parquet");
-    println!("insert_res: {:?}", insert_res);
-    parse("SELECT * FROM numbers");
 
+    insert_by_join("tables/nums1.parquet", "tables/nums2.parquet");
+    parse("SELECT * FROM nums1");
+    parse("SELECT * FROM nums2");
+//     create_file_1();
+//     create_file_2();
+//
+//     parse("SELECT * from numbers1");
+//     parse("SELECT * from numbers2");
+//
+//     let insert_res = insert("tables/numbers1.parquet");
+//     println!("insert_res: {:?}", insert_res);
+//
+//     parse("SELECT * from numbers1");
+//     parse("SELECT * from numbers2");
+        
 }
-
-
 
 //     let sql_queries = vec![
 //         //         "CREATE TABLE employees (
