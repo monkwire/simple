@@ -53,23 +53,20 @@ fn create_file_2() {
 }
 
 fn main() {
-
-
     insert_by_join("tables/nums1.parquet", "tables/nums2.parquet");
     parse("SELECT * FROM nums1");
     parse("SELECT * FROM nums2");
-//     create_file_1();
-//     create_file_2();
-//
-//     parse("SELECT * from numbers1");
-//     parse("SELECT * from numbers2");
-//
-//     let insert_res = insert("tables/numbers1.parquet");
-//     println!("insert_res: {:?}", insert_res);
-//
-//     parse("SELECT * from numbers1");
-//     parse("SELECT * from numbers2");
-        
+    //     create_file_1();
+    //     create_file_2();
+    //
+    //     parse("SELECT * from numbers1");
+    //     parse("SELECT * from numbers2");
+    //
+    //     let insert_res = insert("tables/numbers1.parquet");
+    //     println!("insert_res: {:?}", insert_res);
+    //
+    //     parse("SELECT * from numbers1");
+    //     parse("SELECT * from numbers2");
 }
 
 //     let sql_queries = vec![

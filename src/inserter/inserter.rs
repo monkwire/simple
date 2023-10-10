@@ -8,6 +8,7 @@ use parquet::column::writer::ColumnCloseResult;
 use parquet::data_type::FixedLenByteArray;
 use parquet::data_type::FixedLenByteArrayType;
 use parquet::data_type::Int32Type;
+use parquet::file::metadata::ColumnChunkMetaData;
 use parquet::file::serialized_reader::SerializedFileReader;
 use parquet::file::writer::SerializedFileWriter;
 use parquet::file::writer::SerializedRowGroupWriter;
@@ -54,11 +55,12 @@ pub fn insert_by_join(path_1: &str, path_2: &str) {
             .write_batch(&values, None, None)
             .unwrap();
 
-        col_writer.close().unwrap()
+        col_writer.close().unwrap();
     }
     row_group_writer.close().unwrap();
     writer.close().unwrap();
 
+    let file_1 = File::open(&path_1).unwrap();
 
     // create file_2
     let path_2 = Path::new(path_2);
@@ -68,40 +70,27 @@ pub fn insert_by_join(path_1: &str, path_2: &str) {
         }";
 
     let schema = Arc::new(parse_message_type(message_type).unwrap());
-    let file = fs::File::create(&path_2).unwrap();
-    let mut writer = SerializedFileWriter::new(file, schema, Default::default()).unwrap();
-    let mut row_group_writer = writer.next_row_group().unwrap();
-    while let Some(mut col_writer) = row_group_writer.next_column().unwrap() {
-        let values: [i32; 5] = [5, 6, 7, 8, 9];
+    let file_2 = fs::File::create(&path_2).unwrap();
 
+    let mut writer_2 = SerializedFileWriter::new(file_2, schema, Default::default()).unwrap();
 
-        // let gen_col_writer = col_writer.typed();
-        //
-        // 
-        // let col_close = gen_col_writer.close().unwrap();
+    let mut row_group_writer_2 = writer_2.next_row_group().unwrap();
+    if let mut col_writer_2 = row_group_writer_2.next_column().unwrap().unwrap() {
+        let gen_col_writer_2 = col_writer_2.typed::<Int32Type>();
+        col_writer_2.close();
 
-        let file_1 = File::open(&path_1).unwrap();
-
-        row_group_writer.append_column(&file_1, col_writer.typed().close().unwrap());
-        row_group_writer.close().unwrap();
+        // gen_col_writer_2.close();
+        // let close_res_2 = gen_col_writer_2.close().unwrap();
+        // row_group_writer_2.append_column(&file_1, close_res_2);
     }
-
-
-    writer.close().unwrap();
-
-
-
-
+    // let col_close = col_writer.typed::<Int32Type>().close().unwrap();
+    row_group_writer_2.close();
+    writer_2.close().unwrap();
 
     // append file_1 to file_2
 
-
-
     // close file_2
-
-
 }
-
 
 pub fn insert(path: &str) -> Result<(), std::io::Error> {
     // Open file as read and write
@@ -118,7 +107,7 @@ pub fn insert(path: &str) -> Result<(), std::io::Error> {
         .truncate(false)
         .open("tables/numbers2.parquet")?;
 
-                    let var: String = String::from("myvar");
+    let var: String = String::from("myvar");
 
     let mut file_write = file_read.try_clone().unwrap();
     let mut tracked_write = TrackedWrite::new(file_write);
