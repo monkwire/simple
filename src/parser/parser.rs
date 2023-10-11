@@ -320,8 +320,8 @@ mod tests {
     fn parse_query_for_bad_table() {
         let table_name = "nonexistanttable";
         let parse_res = parse(&format!("SELECT * FROM {};", table_name));
-        assert_eq!(parse_res.len(), 1);
-        assert!(parse_res[0].is_err());
+        assert_eq!(parse_res.len(), 1, "parse('SELECT * FROM {}') should return a vec with one result. Instead returning a vec of size {}", table_name, parse_res.len());
+        assert!(parse_res[0].is_err(), "Queries with inncorrect SQL should result in an error.");
 
         match &parse_res[0] {
             Err(parse_error) => match parse_error {
@@ -331,4 +331,28 @@ mod tests {
             _ => panic!("Expected TableNotFound error."),
         }
     }
+
+    #[test]
+    fn parse_bad_sql() {
+        let query = "SELECT table_name FROM *;";
+        let parse_res = parse(&query);
+        assert_eq!(parse_res.len(), 1, "parse called with a non-empty string should return a vec with at least one Result");
+        assert!(parse_res[0].is_err(), "parse called with incorrect SQL should return Vec<Err>.");
+
+        match &parse_res[0] {
+            Err(parse_err) => match parse_err {
+                ParseError::BadSQL(err) => assert_eq!(err.description, format!("Could not parse {}", query)),
+                _ => panic!("Expected BadSQL.")
+            },
+            _ => panic!("Expected BadSQL.")
+        }
+
+
+
+
+
+    }
+
+
+
 }
