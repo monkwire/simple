@@ -330,23 +330,5 @@ mod tests {
             },
             _ => panic!("Expected TableNotFound error."),
         }
-
-
-
-
-        // let expected: Result<HashMap<String, ArrayData>, ParseError> = Err(ParseError::TableNotFound(
-        //         TableNotFound {
-        //             description: format!("Could not find {} in {}.", 
-        //             String::from(table_name), "tables/")
-        //         }
-        //     )
-        // );
-        // println!("in test, actual: {:?}", actual);
-        // println!("in test, expected: {:?}", expected);
-        //
-        // //assert!(actual == expected);
-        //
-        // assert!(matches!(actual, expected));
-
     }
 }
