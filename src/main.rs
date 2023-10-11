@@ -1,4 +1,3 @@
-use std::fs::File;
 use ::std::sync::Arc;
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
@@ -6,6 +5,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_array::ArrayRef;
 use inserter::inserter::insert;
 use parquet::arrow::arrow_writer::ArrowWriter;
+use std::fs::File;
 mod parser;
 use parser::parser::parse;
 mod inserter;
@@ -33,17 +33,12 @@ fn create_file() {
     // println!("write res: {:?}", res);
 }
 
-
 fn main() {
     // create_file();
 
-    let insert_res = insert("tables/numbers.parquet");
-    println!("insert_res: {:?}", insert_res);
+    parse("SELECT * FROM askdjahsd");
     parse("SELECT * FROM numbers");
-
 }
-
-
 
 //     let sql_queries = vec![
 //         //         "CREATE TABLE employees (

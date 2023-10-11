@@ -16,19 +16,19 @@ use::std::fmt;
 
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ParseError {
     TableNotFound(TableNotFound),
-    BadSQLError(BadSQLError),
+    BadSQL(BadSQL),
 
 }
-#[derive(Debug)]
-struct TableNotFound {
+#[derive(Debug, PartialEq, Clone)]
+pub struct TableNotFound {
     description: String,
 }
 
-#[derive(Debug)]
-struct BadSQLError {
+#[derive(Debug, PartialEq, Clone)]
+pub struct BadSQL {
     description: String,
 
 }
@@ -39,13 +39,9 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ParseError::TableNotFound(e) => write!(f, "Table Not Found: {}", e.description),
-            ParseError::BadSQLError(e) => write!(f, "BadSQL Error: {}", e.description),
+            ParseError::BadSQL(e) => write!(f, "BadSQL Error: {}", e.description),
             _ => write!(f, "")
-
-
-
         }
-
     }
 }
 
@@ -54,17 +50,21 @@ impl Error for ParseError {}
 
 pub fn parse(
     sql: &str,
-) -> Vec<Result<HashMap<std::string::String, ArrayData>, Box<dyn std::error::Error>>> {
-    let statements = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql).unwrap();
+    ) -> Vec<Result<HashMap<std::string::String, ArrayData>, ParseError>> {
+    let statements_res = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql);
+    if let Ok(statements) = statements_res {
+
+
 
     let mut tables = Vec::new();
+    let mut query_results = Vec::new();
 
     for statement in &statements {
         match statement {
             Statement::Query(query) => {
                 if let ast::SetExpr::Select(sel) = &*query.body {
-                    let table = handle_select(&sel);
-                    tables.push(table);
+                    let query_res = handle_select(&sel);
+                    query_results.push(query_res);
                 }
             }
             Statement::CreateTable {
@@ -79,6 +79,8 @@ pub fn parse(
                 handle_create_table(name.to_string(), columns);
                 let table = get_table(&name.to_string(), Vec::new(), true);
                 tables.push(table);
+                let query_result = get_table(&name.to_string(), Vec::new(), true);
+                query_results.push(query_result);
             }
             Statement::Insert {
                 or,
@@ -96,8 +98,13 @@ pub fn parse(
             _ => println!("SQL type not yet supported"),
         }
     }
-    println!("returning from parse: {:?}", tables);
-    tables
+    println!("returning from parse: {:?}", query_results);
+    return query_results
+    } else {
+        let err = Err(ParseError::BadSQL(BadSQL {description: format!("Could not parse {}", sql)}));
+        return vec![err]
+
+    }
 }
 
 fn handle_insert(table_name: String, column_names: &Vec<Ident>, source_data: &Box<Query>) {
@@ -203,7 +210,7 @@ pub fn handle_create_table(table_name: String, columns: &Vec<ColumnDef>) {
 
 fn handle_select<'a>(
     select_statement: &'a Box<sqlparser::ast::Select>,
-) -> Result<HashMap<std::string::String, ArrayData>, Box<dyn std::error::Error>> {
+) -> Result<HashMap<std::string::String, ArrayData>, ParseError> {
     let columns = &select_statement.projection;
 
     let mut column_names: Vec<String> = vec![];
@@ -247,7 +254,7 @@ fn get_table<'a>(
     table_name: &str,
     columns: Vec<String>,
     wildcard: bool,
-) -> Result<HashMap<std::string::String, ArrayData>, Box<dyn std::error::Error>> {
+) -> Result<HashMap<std::string::String, ArrayData>, ParseError> {
     if wildcard {
         get_table(table_name, get_all_column_names(table_name), false)
     } else {
@@ -272,9 +279,13 @@ fn get_table<'a>(
                 }
             }
             // let record_batch = reader.next().unwrap().unwrap();
-        }
         println!("returning from get table:\n {:?}", return_table);
-        Ok(return_table)
+        return Ok(return_table)
+        } else {
+            let err =  Err(ParseError::TableNotFound(TableNotFound { description: (format!("Could not find {} in {}.", String::from(table_name), "tables"))}));
+            println!("returning from get_table:\n {:?}", err);
+            return err
+        }
     }
 }
 
@@ -307,11 +318,35 @@ mod tests {
 
     #[test]
     fn parse_query_for_bad_table() {
-        let parse_res = parse("SELECT * FROM nonexistanttable");
+        let table_name = "nonexistanttable";
+        let parse_res = parse(&format!("SELECT * FROM {};", table_name));
         assert_eq!(parse_res.len(), 1);
+        assert!(parse_res[0].is_err());
+
         match &parse_res[0] {
-            Err(e) => assert!(true),
-            _ => assert!(false),
+            Err(parse_error) => match parse_error {
+                ParseError::TableNotFound(err) => assert_eq!(err.description, format!("Could not find {} in {}.", table_name, "tables")),
+           _ => panic!("Expected TableNotFound error."),
+            },
+            _ => panic!("Expected TableNotFound error."),
         }
+
+
+
+
+        // let expected: Result<HashMap<String, ArrayData>, ParseError> = Err(ParseError::TableNotFound(
+        //         TableNotFound {
+        //             description: format!("Could not find {} in {}.", 
+        //             String::from(table_name), "tables/")
+        //         }
+        //     )
+        // );
+        // println!("in test, actual: {:?}", actual);
+        // println!("in test, expected: {:?}", expected);
+        //
+        // //assert!(actual == expected);
+        //
+        // assert!(matches!(actual, expected));
+
     }
 }
