@@ -11,7 +11,46 @@ use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
 use std::fs::File;
 use std::sync::Arc;
+use std::error::Error;
+use::std::fmt;
 
+
+
+#[derive(Debug)]
+pub enum ParseError {
+    TableNotFound(TableNotFound),
+    BadSQLError(BadSQLError),
+
+}
+#[derive(Debug)]
+struct TableNotFound {
+    description: String,
+}
+
+#[derive(Debug)]
+struct BadSQLError {
+    description: String,
+
+}
+
+
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParseError::TableNotFound(e) => write!(f, "Table Not Found: {}", e.description),
+            ParseError::BadSQLError(e) => write!(f, "BadSQL Error: {}", e.description),
+            _ => write!(f, "")
+
+
+
+        }
+
+    }
+}
+
+
+impl Error for ParseError {}
 
 pub fn parse(
     sql: &str,
@@ -57,6 +96,7 @@ pub fn parse(
             _ => println!("SQL type not yet supported"),
         }
     }
+    println!("returning from parse: {:?}", tables);
     tables
 }
 
@@ -142,7 +182,7 @@ fn convert_sqlparserdatatype_to_arrowdatatype(sqlparserdatatype: &DataType) -> a
     }
 }
 
-fn handle_create_table(table_name: String, columns: &Vec<ColumnDef>) {
+pub fn handle_create_table(table_name: String, columns: &Vec<ColumnDef>) {
     let mut schema_fields: Vec<Field> = Vec::new();
 
     for column in columns {
@@ -251,5 +291,27 @@ fn generate_table_string(arraydata: HashMap<String, ArrayData>) {
             }
             _ => println!("unsupported"),
         };
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests { 
+    use super::*;
+    #[test]
+    fn parse_empty() {
+        let empty_parse_res = parse("");
+        assert_eq!(empty_parse_res.len(), 0);
+    }
+
+    #[test]
+    fn parse_query_for_bad_table() {
+        let parse_res = parse("SELECT * FROM nonexistanttable");
+        assert_eq!(parse_res.len(), 1);
+        match &parse_res[0] {
+            Err(e) => assert!(true),
+            _ => assert!(false),
+        }
     }
 }
