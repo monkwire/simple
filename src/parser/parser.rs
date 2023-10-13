@@ -1,7 +1,7 @@
 use arrow::array::ArrayData;
 use arrow::datatypes::DataType as arrow_datatype;
 use arrow::datatypes::{Field, Schema};
-use arrow_array::{Int32Array, RecordBatch, StringArray};
+use arrow_array::{Int32Array, RecordBatch, StringArray, ArrayRef};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::file::reader::{FileReader, SerializedFileReader};
@@ -20,6 +20,7 @@ use::std::fmt;
 pub enum ParseError {
     TableNotFound(TableNotFound),
     BadSQL(BadSQL),
+    Unsupported(UnsupportedFunction),
 
 }
 #[derive(Debug, PartialEq, Clone)]
@@ -31,6 +32,11 @@ pub struct TableNotFound {
 pub struct BadSQL {
     description: String,
 
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct UnsupportedFunction {
+    description: String,
 }
 
 
@@ -73,9 +79,6 @@ pub fn parse(
                 query,
                 ..
             } => {
-                println!("\n\ncreate_table name: {:?}", name);
-                println!("\n\ncreate_table columns: {:?}", columns);
-                println!("\n\ncreate_table query: {:?}", query);
                 handle_create_table(name.to_string(), columns);
                 let table = get_table(&name.to_string(), Vec::new(), true);
                 tables.push(table);
@@ -95,10 +98,12 @@ pub fn parse(
                 on,
                 returning,
             } => handle_insert(table_name.to_string(), columns, source),
-            _ => println!("SQL type not yet supported"),
+            _ => {
+                query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {description: "Query type not implemented.".to_string()})))
+
+            }
         }
     }
-    println!("returning from parse: {:?}", query_results);
     return query_results
     } else {
         let err = Err(ParseError::BadSQL(BadSQL {description: format!("Could not parse {}", sql)}));
@@ -115,7 +120,6 @@ fn handle_insert(table_name: String, column_names: &Vec<Ident>, source_data: &Bo
     let mut reader = builder.build().unwrap();
 
     if let Some(reader_option) = reader.next() {
-        println!("\nreader_option: {:?}", reader_option);
         if let Ok(record_batch_one) = reader_option {
             let schema = record_batch_one.schema();
 
@@ -160,10 +164,8 @@ fn handle_insert(table_name: String, column_names: &Vec<Ident>, source_data: &Bo
 
             let concatenated_batches =
                 RecordBatch::try_new(schema.clone(), concatenated_columns).unwrap();
-            println!("concatenated_batches: {:?}", concatenated_batches);
 
             let file_to_write = File::open(&path);
-            println!("file_to_write: {:?}", file_to_write);
 
             if let Ok(f) = file_to_write {
                 let mut writer =
@@ -171,7 +173,6 @@ fn handle_insert(table_name: String, column_names: &Vec<Ident>, source_data: &Bo
 
                 writer.write(&concatenated_batches).expect("Writing batch");
                 writer.close().unwrap();
-                println!("file written");
             } else {
                 println!("file not written");
             }
@@ -270,7 +271,6 @@ fn get_table<'a>(
             if let Some(record_batch_option) = next_reader {
                 if let Ok(record_batch) = record_batch_option {
                     let schema = record_batch.schema();
-                    println!("schema inside of get_table: {:?}", schema);
                     for col_name in columns {
                         let recordbatch_column = record_batch.column_by_name(&col_name);
                         return_table
@@ -279,7 +279,6 @@ fn get_table<'a>(
                 }
             }
             // let record_batch = reader.next().unwrap().unwrap();
-        println!("returning from get table:\n {:?}", return_table);
         return Ok(return_table)
         } else {
             let err =  Err(ParseError::TableNotFound(TableNotFound { description: (format!("Could not find {} in {}.", String::from(table_name), "tables"))}));
@@ -306,9 +305,33 @@ fn generate_table_string(arraydata: HashMap<String, ArrayData>) {
 }
 
 
+fn create_test_file(table_name: &str) {
+    let schema = Schema::new(vec![
+        Field::new("col_1", arrow_datatype::Int32, false),
+        Field::new("col_2", arrow_datatype::Int32, false),
+        Field::new("col_3", arrow_datatype::Int32, true),
+    ]);
+
+    let my_vec = vec![
+        Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![4, 5, 6])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![7, 8, 9])) as ArrayRef,
+    ];
+
+    let batch = RecordBatch::try_new(Arc::new(schema.clone()), my_vec).unwrap();
+
+    let file = File::create(format!("tables/{}.parquet", table_name)).unwrap();
+    let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
+    let res = writer.write(&batch);
+    writer.close().unwrap();
+}
 
 #[cfg(test)]
 mod tests { 
+    use std::fs;
+
+    use arrow::buffer::Buffer;
+
     use super::*;
     #[test]
     fn parse_empty() {
@@ -346,10 +369,53 @@ mod tests {
             },
             _ => panic!("Expected BadSQL.")
         }
+    }
+
+    #[test]
+    fn parse_good_sql() {
+        let table_name = "test_table";
+        create_test_file(table_name);
+        let parse_res = parse(&format!("SELECT * FROM {};", table_name));
+        assert_eq!(parse_res.len(), 1, "parse called with a non-empty string should return a vec with at least one Result");
+        assert!(parse_res[0].is_ok(), "parse called with correct SQL code should not Err.");
+
+        let res = parse_res[0].clone().unwrap();
+        assert_eq!(res["col_1"].len(), 3);
+        assert_eq!(res["col_2"].len(), 3);
+        assert_eq!(res["col_3"].len(), 3);
+
+        let file_cleanup_res = fs::remove_file(format!("tables/{}.parquet", table_name));
+        if file_cleanup_res.is_err() {
+            panic!("Could not remove test file");
+        }
+    }
+
+    #[test]
+    fn parse_multiple_queries_to_same_table () {
+        let table_name = "test_table_2";
+        create_test_file(table_name);
+
+        let res = parse(&format!("SELECT * FROM {}; SELECT col_1 FROM {};", table_name, table_name));
+        assert_eq!(res.len(), 2);
+
+        assert!(res[0].is_ok());
+        let res_1 = res[0].clone().unwrap();
+        assert_eq!(res_1["col_1"].len(), 3);
+        assert_eq!(res_1["col_2"].len(), 3);
+        assert_eq!(res_1["col_3"].len(), 3);
+
+        assert!(res[1].is_ok());
+        let res_2 = res[1].clone().unwrap();
+        assert_eq!(res_1["col_1"].len(), 3);
+
+        assert!(!res_2.contains_key("col_2"));
+        assert!(!res_2.contains_key("col_3"));
 
 
-
-
+        let file_cleanup_res = fs::remove_file(format!("tables/{}.parquet", table_name));
+        if file_cleanup_res.is_err() {
+            panic!("Could not remove test file");
+        }
 
     }
 

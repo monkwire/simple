@@ -1,3 +1,4 @@
+use std::io::Write;
 use ::std::sync::Arc;
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
@@ -28,16 +29,33 @@ fn create_file() {
     let file = File::create("tables/numbers.parquet").unwrap();
     let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
     let res = writer.write(&batch);
+
+
+    println!("schema: {:?}", schema);
     writer.close().unwrap();
-    println!("File created succesfully");
+    println!("File created succesfully\n");
     // println!("write res: {:?}", res);
 }
 
 fn main() {
-    // create_file();
+    create_file();
 
-    parse("SELECT * FROM askdjahsd");
-    parse("SELECT * FROM numbers");
+
+    let mut test_file = File::create("query_res.tx");
+    if let Ok(mut file) = test_file {
+
+    let parse_res = parse("SELECT * FROM numbers");
+    println!("in main, parse_res.len():{}", parse_res.len());
+    for res in parse_res {
+        println!("in main, res:\n{:?}", res);
+        file.write_all(format!("{:?}", res).as_bytes());
+        println!("wrote to file");
+
+        
+    }
+    } else {
+        println!("could not write to test file");
+    }
 }
 
 //     let sql_queries = vec![
