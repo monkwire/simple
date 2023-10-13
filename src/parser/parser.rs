@@ -357,14 +357,30 @@ mod tests {
 
     #[test]
     fn parse_bad_sql() {
-        let query = "SELECT table_name FROM *;";
-        let parse_res = parse(&query);
+        let query_1 = "SELECT table_name FROM *;";
+        let parse_res = parse(&query_1);
         assert_eq!(parse_res.len(), 1, "parse called with a non-empty string should return a vec with at least one Result");
         assert!(parse_res[0].is_err(), "parse called with incorrect SQL should return Vec<Err>.");
 
         match &parse_res[0] {
             Err(parse_err) => match parse_err {
-                ParseError::BadSQL(err) => assert_eq!(err.description, format!("Could not parse {}", query)),
+                ParseError::BadSQL(err) => assert_eq!(err.description, format!("Could not parse {}", query_1)),
+                _ => panic!("Expected BadSQL.")
+            },
+            _ => panic!("Expected BadSQL.")
+        }
+
+        let table_name = "test_table_3";
+        create_test_file(table_name);
+        let query_2 = &format!("SELECT * FROM {}; aslkdjwqeu col_1 FROM {};", table_name, table_name);
+        let res = parse(query_2);
+
+        assert_eq!(res.len(), 1);
+        assert!(res[0].is_err());
+
+        match &res[0] {
+            Err(parse_err) => match parse_err {
+                ParseError::BadSQL(err) => assert_eq!(err.description, format!("Could not parse {}", query_2)),
                 _ => panic!("Expected BadSQL.")
             },
             _ => panic!("Expected BadSQL.")
@@ -416,9 +432,5 @@ mod tests {
         if file_cleanup_res.is_err() {
             panic!("Could not remove test file");
         }
-
     }
-
-
-
 }

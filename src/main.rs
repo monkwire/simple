@@ -38,24 +38,6 @@ fn create_file() {
 }
 
 fn main() {
-    create_file();
-
-
-    let mut test_file = File::create("query_res.tx");
-    if let Ok(mut file) = test_file {
-
-    let parse_res = parse("SELECT * FROM numbers");
-    println!("in main, parse_res.len():{}", parse_res.len());
-    for res in parse_res {
-        println!("in main, res:\n{:?}", res);
-        file.write_all(format!("{:?}", res).as_bytes());
-        println!("wrote to file");
-
-        
-    }
-    } else {
-        println!("could not write to test file");
-    }
 }
 
 //     let sql_queries = vec![
