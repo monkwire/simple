@@ -37,7 +37,19 @@ fn create_file() {
 }
 
 fn main() {
-    let myvar: String = "asda".to_string();
+    let music_schema = Schema::new(vec![
+        Field::new("number_col_1", DataType::Int32, false),
+        Field::new("number_col_2", DataType::Int32, false),
+        Field::new("number_col_3", DataType::Int32, true),
+    ]);
+
+    let my_vec = vec![
+        Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![4, 5, 6])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![7, 8, 9])) as ArrayRef,
+    ];
+
+    println!("{:?}", create("music_table", music_schema, my_vec));
 }
 
 //     let sql_queries = vec![
