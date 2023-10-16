@@ -1,15 +1,15 @@
-use std::io::Write;
 use ::std::sync::Arc;
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_array::ArrayRef;
-use inserter::inserter::insert;
 use parquet::arrow::arrow_writer::ArrowWriter;
 use std::fs::File;
+use std::io::Write;
 mod parser;
+use creator::creator::create;
 use parser::parser::parse;
-mod inserter;
+mod creator;
 
 fn create_file() {
     let schema = Schema::new(vec![
@@ -30,7 +30,6 @@ fn create_file() {
     let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
     let res = writer.write(&batch);
 
-
     println!("schema: {:?}", schema);
     writer.close().unwrap();
     println!("File created succesfully\n");
@@ -38,6 +37,7 @@ fn create_file() {
 }
 
 fn main() {
+    let myvar: String = "asda".to_string();
 }
 
 //     let sql_queries = vec![
