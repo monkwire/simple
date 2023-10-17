@@ -6,8 +6,10 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow_array::{ArrayRef, RecordBatch};
 use parquet::arrow::ArrowWriter;
 use std::error::Error;
+use std::fmt::format;
 use std::fs;
 use std::fs::File;
+use std::path::Path;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum CreateError {
@@ -41,10 +43,14 @@ pub fn create(
     schema: ArrowSchema,
     cols: Vec<ArrayRef>,
 ) -> Result<(), CreateError> {
-    if let Ok(_dir_tables) = std::fs::read_dir(format!("./tables/{}", table_name)) {
-        println!("found directory tables/{}", table_name);
+    let mut dir_len = 0;
+
+    if let Ok(dir_tables) = std::fs::read_dir(format!("./tables/{}", table_name)) {
+        println!("found directory tables/{}/", table_name);
+        dir_len = dir_tables.count();
+        println!("dir count: {}", dir_len);
     } else {
-        if fs::create_dir(format!("./tables/{}", table_name)).is_err() {
+        if fs::create_dir(format!("./tables/{}/", table_name)).is_err() {
             let err = Err(CreateError::WriteError(WriteError {
                 description: String::from(format!(
                     "Could not find or create tables/{} directory.",
@@ -60,10 +66,13 @@ pub fn create(
     let batch = RecordBatch::try_new(Arc::new(schema), cols).unwrap();
     let file = File::create(format!(
         "tables/{}/{}_{}.parquet",
-        table_name, table_name, 1
+        table_name,
+        table_name,
+        dir_len + 1
     ));
 
     if let Ok(file) = file {
+        println!("attempting to add to file {}", dir_len + 1);
         let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
         let res = writer.write(&batch);
         if let Ok(_res) = res {
