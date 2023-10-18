@@ -49,7 +49,7 @@ fn main() {
         Arc::new(Int32Array::from(vec![7, 8, 9])) as ArrayRef,
     ];
 
-    println!("{:?}", create("music_table", music_schema, my_vec));
+    println!("{:?}", create("sports", music_schema, my_vec));
 }
 
 //     let sql_queries = vec![
