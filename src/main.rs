@@ -1,15 +1,15 @@
-use std::io::Write;
 use ::std::sync::Arc;
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_array::ArrayRef;
-use inserter::inserter::insert;
 use parquet::arrow::arrow_writer::ArrowWriter;
 use std::fs::File;
+use std::io::Write;
 mod parser;
+use creator::creator::create;
 use parser::parser::parse;
-mod inserter;
+mod creator;
 
 fn create_file() {
     let schema = Schema::new(vec![
@@ -30,7 +30,6 @@ fn create_file() {
     let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
     let res = writer.write(&batch);
 
-
     println!("schema: {:?}", schema);
     writer.close().unwrap();
     println!("File created succesfully\n");
@@ -38,6 +37,19 @@ fn create_file() {
 }
 
 fn main() {
+    let music_schema = Schema::new(vec![
+        Field::new("number_col_1", DataType::Int32, false),
+        Field::new("number_col_2", DataType::Int32, false),
+        Field::new("number_col_3", DataType::Int32, true),
+    ]);
+
+    let my_vec = vec![
+        Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![4, 5, 6])) as ArrayRef,
+        Arc::new(Int32Array::from(vec![7, 8, 9])) as ArrayRef,
+    ];
+
+    println!("{:?}", create("sports", music_schema, my_vec));
 }
 
 //     let sql_queries = vec![

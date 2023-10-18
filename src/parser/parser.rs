@@ -1,27 +1,25 @@
+use ::std::fmt;
 use arrow::array::ArrayData;
 use arrow::datatypes::DataType as arrow_datatype;
 use arrow::datatypes::{Field, Schema};
-use arrow_array::{Int32Array, RecordBatch, StringArray, ArrayRef};
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use arrow_array::{ArrayRef, Int32Array, RecordBatch, StringArray};
+pub(crate) use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use sqlparser::ast::Query;
 use sqlparser::ast::{self, ColumnDef, DataType, Ident, SelectItem, Statement};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
+use std::error::Error;
+use std::fs;
 use std::fs::File;
 use std::sync::Arc;
-use std::error::Error;
-use::std::fmt;
-
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseError {
     TableNotFound(TableNotFound),
     BadSQL(BadSQL),
     Unsupported(UnsupportedFunction),
-
 }
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableNotFound {
@@ -31,7 +29,6 @@ pub struct TableNotFound {
 #[derive(Debug, PartialEq, Clone)]
 pub struct BadSQL {
     description: String,
-
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -39,81 +36,74 @@ pub struct UnsupportedFunction {
     description: String,
 }
 
-
-
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ParseError::TableNotFound(e) => write!(f, "Table Not Found: {}", e.description),
             ParseError::BadSQL(e) => write!(f, "BadSQL Error: {}", e.description),
-            _ => write!(f, "")
+            _ => write!(f, ""),
         }
     }
 }
 
-
 impl Error for ParseError {}
 
-pub fn parse(
-    sql: &str,
-    ) -> Vec<Result<HashMap<std::string::String, ArrayData>, ParseError>> {
+pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, ArrayData>, ParseError>> {
     let statements_res = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql);
     if let Ok(statements) = statements_res {
+        let mut tables = Vec::new();
+        let mut query_results = Vec::new();
 
-
-
-    let mut tables = Vec::new();
-    let mut query_results = Vec::new();
-
-    for statement in &statements {
-        match statement {
-            Statement::Query(query) => {
-                if let ast::SetExpr::Select(sel) = &*query.body {
-                    let query_res = handle_select(&sel);
-                    query_results.push(query_res);
+        for statement in &statements {
+            match statement {
+                Statement::Query(query) => {
+                    if let ast::SetExpr::Select(sel) = &*query.body {
+                        let query_res = handle_select(&sel);
+                        query_results.push(query_res);
+                    }
                 }
-            }
-            Statement::CreateTable {
-                name,
-                columns,
-                query,
-                ..
-            } => {
-                handle_create_table(name.to_string(), columns);
-                let table = get_table(&name.to_string(), Vec::new(), true);
-                tables.push(table);
-                let query_result = get_table(&name.to_string(), Vec::new(), true);
-                query_results.push(query_result);
-            }
-            Statement::Insert {
-                or,
-                into,
-                table_name,
-                columns,
-                overwrite,
-                source,
-                partitioned,
-                after_columns,
-                table,
-                on,
-                returning,
-            } => handle_insert(table_name.to_string(), columns, source),
-            _ => {
-                query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {description: "Query type not implemented.".to_string()})))
-
+                Statement::CreateTable {
+                    name,
+                    columns,
+                    query,
+                    ..
+                } => {
+                    handle_create_table(name.to_string(), columns);
+                    let table = get_table(&name.to_string(), Vec::new(), true);
+                    tables.push(table);
+                    let query_result = get_table(&name.to_string(), Vec::new(), true);
+                    query_results.push(query_result);
+                }
+                Statement::Insert {
+                    or,
+                    into,
+                    table_name,
+                    columns,
+                    overwrite,
+                    source,
+                    partitioned,
+                    after_columns,
+                    table,
+                    on,
+                    returning,
+                } => handle_insert(table_name.to_string(), columns, source),
+                _ => query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {
+                    description: "Query type not implemented.".to_string(),
+                }))),
             }
         }
-    }
-    return query_results
+        return query_results;
     } else {
-        let err = Err(ParseError::BadSQL(BadSQL {description: format!("Could not parse {}", sql)}));
-        return vec![err]
-
+        let err = Err(ParseError::BadSQL(BadSQL {
+            description: format!("Could not parse {}", sql),
+        }));
+        return vec![err];
     }
 }
 
 fn handle_insert(table_name: String, column_names: &Vec<Ident>, source_data: &Box<Query>) {
     // Create RecordBatch from existing data
+    let tables = fs::read_dir("./tables").unwrap();
     let path = format!("tables/{}.parquet", table_name);
     let file = File::open(&path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
@@ -279,11 +269,17 @@ fn get_table<'a>(
                 }
             }
             // let record_batch = reader.next().unwrap().unwrap();
-        return Ok(return_table)
+            return Ok(return_table);
         } else {
-            let err =  Err(ParseError::TableNotFound(TableNotFound { description: (format!("Could not find {} in {}.", String::from(table_name), "tables"))}));
+            let err = Err(ParseError::TableNotFound(TableNotFound {
+                description: (format!(
+                    "Could not find {} in {}.",
+                    String::from(table_name),
+                    "tables"
+                )),
+            }));
             println!("returning from get_table:\n {:?}", err);
-            return err
+            return err;
         }
     }
 }
@@ -303,7 +299,6 @@ fn generate_table_string(arraydata: HashMap<String, ArrayData>) {
         };
     }
 }
-
 
 fn create_test_file(table_name: &str) {
     let schema = Schema::new(vec![
@@ -327,7 +322,7 @@ fn create_test_file(table_name: &str) {
 }
 
 #[cfg(test)]
-mod tests { 
+mod tests {
     use std::fs;
 
     use arrow::buffer::Buffer;
@@ -344,12 +339,18 @@ mod tests {
         let table_name = "nonexistanttable";
         let parse_res = parse(&format!("SELECT * FROM {};", table_name));
         assert_eq!(parse_res.len(), 1, "parse('SELECT * FROM {}') should return a vec with one result. Instead returning a vec of size {}", table_name, parse_res.len());
-        assert!(parse_res[0].is_err(), "Queries with inncorrect SQL should result in an error.");
+        assert!(
+            parse_res[0].is_err(),
+            "Queries with inncorrect SQL should result in an error."
+        );
 
         match &parse_res[0] {
             Err(parse_error) => match parse_error {
-                ParseError::TableNotFound(err) => assert_eq!(err.description, format!("Could not find {} in {}.", table_name, "tables")),
-           _ => panic!("Expected TableNotFound error."),
+                ParseError::TableNotFound(err) => assert_eq!(
+                    err.description,
+                    format!("Could not find {} in {}.", table_name, "tables")
+                ),
+                _ => panic!("Expected TableNotFound error."),
             },
             _ => panic!("Expected TableNotFound error."),
         }
@@ -359,20 +360,32 @@ mod tests {
     fn parse_bad_sql() {
         let query_1 = "SELECT table_name FROM *;";
         let parse_res = parse(&query_1);
-        assert_eq!(parse_res.len(), 1, "parse called with a non-empty string should return a vec with at least one Result");
-        assert!(parse_res[0].is_err(), "parse called with incorrect SQL should return Vec<Err>.");
+        assert_eq!(
+            parse_res.len(),
+            1,
+            "parse called with a non-empty string should return a vec with at least one Result"
+        );
+        assert!(
+            parse_res[0].is_err(),
+            "parse called with incorrect SQL should return Vec<Err>."
+        );
 
         match &parse_res[0] {
             Err(parse_err) => match parse_err {
-                ParseError::BadSQL(err) => assert_eq!(err.description, format!("Could not parse {}", query_1)),
-                _ => panic!("Expected BadSQL.")
+                ParseError::BadSQL(err) => {
+                    assert_eq!(err.description, format!("Could not parse {}", query_1))
+                }
+                _ => panic!("Expected BadSQL."),
             },
-            _ => panic!("Expected BadSQL.")
+            _ => panic!("Expected BadSQL."),
         }
 
         let table_name = "test_table_3";
         create_test_file(table_name);
-        let query_2 = &format!("SELECT * FROM {}; aslkdjwqeu col_1 FROM {};", table_name, table_name);
+        let query_2 = &format!(
+            "SELECT * FROM {}; aslkdjwqeu col_1 FROM {};",
+            table_name, table_name
+        );
         let res = parse(query_2);
 
         assert_eq!(res.len(), 1);
@@ -380,10 +393,12 @@ mod tests {
 
         match &res[0] {
             Err(parse_err) => match parse_err {
-                ParseError::BadSQL(err) => assert_eq!(err.description, format!("Could not parse {}", query_2)),
-                _ => panic!("Expected BadSQL.")
+                ParseError::BadSQL(err) => {
+                    assert_eq!(err.description, format!("Could not parse {}", query_2))
+                }
+                _ => panic!("Expected BadSQL."),
             },
-            _ => panic!("Expected BadSQL.")
+            _ => panic!("Expected BadSQL."),
         }
     }
 
@@ -392,8 +407,15 @@ mod tests {
         let table_name = "test_table";
         create_test_file(table_name);
         let parse_res = parse(&format!("SELECT * FROM {};", table_name));
-        assert_eq!(parse_res.len(), 1, "parse called with a non-empty string should return a vec with at least one Result");
-        assert!(parse_res[0].is_ok(), "parse called with correct SQL code should not Err.");
+        assert_eq!(
+            parse_res.len(),
+            1,
+            "parse called with a non-empty string should return a vec with at least one Result"
+        );
+        assert!(
+            parse_res[0].is_ok(),
+            "parse called with correct SQL code should not Err."
+        );
 
         let res = parse_res[0].clone().unwrap();
         assert_eq!(res["col_1"].len(), 3);
@@ -407,11 +429,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_multiple_queries_to_same_table () {
+    fn parse_multiple_queries_to_same_table() {
         let table_name = "test_table_2";
         create_test_file(table_name);
 
-        let res = parse(&format!("SELECT * FROM {}; SELECT col_1 FROM {};", table_name, table_name));
+        let res = parse(&format!(
+            "SELECT * FROM {}; SELECT col_1 FROM {};",
+            table_name, table_name
+        ));
         assert_eq!(res.len(), 2);
 
         assert!(res[0].is_ok());
@@ -426,7 +451,6 @@ mod tests {
 
         assert!(!res_2.contains_key("col_2"));
         assert!(!res_2.contains_key("col_3"));
-
 
         let file_cleanup_res = fs::remove_file(format!("tables/{}.parquet", table_name));
         if file_cleanup_res.is_err() {
