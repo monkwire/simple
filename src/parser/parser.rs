@@ -327,9 +327,8 @@ pub fn create_test_file(table_name: &str) -> Result<(), TestError> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::{self, remove_dir_all};
-
     use arrow::buffer::Buffer;
+    use std::fs::{self, remove_dir_all};
 
     use super::*;
     #[test]
@@ -381,8 +380,14 @@ mod tests {
             _ => panic!("Expected BadSQL."),
         }
 
-        let table_name = "test_table_3";
+        let table_name = "test_table3";
+
         create_test_file(table_name);
+        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
+        if directory_cleanup_res.is_err() {
+            panic!("Could not remove test directory");
+        }
+
         let query_2 = &format!(
             "SELECT * FROM {}; aslkdjwqeu col_1 FROM {};",
             table_name, table_name
@@ -401,6 +406,8 @@ mod tests {
             },
             _ => panic!("Expected BadSQL."),
         }
+
+        // Add cleanup function
     }
 
     #[test]
@@ -412,6 +419,11 @@ mod tests {
             if remove_dir_all(format!("./tables/{}", table_name)).is_err() {
                 panic!("Cannot set up create_new_table test")
             }
+        }
+
+        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
+        if directory_cleanup_res.is_err() {
+            panic!("Could not remove test directory");
         }
 
         let parse_res = parse(&format!("SELECT * FROM {};", table_name));
@@ -429,17 +441,17 @@ mod tests {
         assert_eq!(res["col_1"].len(), 3);
         assert_eq!(res["col_2"].len(), 3);
         assert_eq!(res["col_3"].len(), 3);
-
-        let file_cleanup_res = fs::remove_file(format!("tables/{}.parquet", table_name));
-        if file_cleanup_res.is_err() {
-            panic!("Could not remove test file");
-        }
     }
 
     #[test]
     fn parse_multiple_queries_to_same_table() {
-        let table_name = "test_table_2";
-        create_test_file(table_name);
+        let table_name = "test_table2";
+        assert!(create_test_file(table_name).is_ok());
+
+        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
+        if directory_cleanup_res.is_err() {
+            panic!("Could not remove test directory");
+        }
 
         let res = parse(&format!(
             "SELECT * FROM {}; SELECT col_1 FROM {};",
@@ -459,10 +471,5 @@ mod tests {
 
         assert!(!res_2.contains_key("col_2"));
         assert!(!res_2.contains_key("col_3"));
-
-        let file_cleanup_res = fs::remove_file(format!("tables/{}.parquet", table_name));
-        if file_cleanup_res.is_err() {
-            panic!("Could not remove test file");
-        }
     }
 }
