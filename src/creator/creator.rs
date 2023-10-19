@@ -1,5 +1,6 @@
 use ::std::fmt;
 use ::std::sync::Arc;
+#[ignore]
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::Schema as ArrowSchema;
 use arrow::datatypes::{DataType, Field, Schema};
@@ -112,7 +113,7 @@ mod tests {
 
     #[test]
     fn create_new_table() {
-        let table_name = "test_table";
+        let table_name = "test_table_create_table";
         if std::fs::read_dir(format!("./tables/{}", table_name)).is_ok() {
             if remove_dir_all(format!("./tables/{}", table_name)).is_err() {
                 panic!("Cannot set up create_new_table test")
@@ -131,14 +132,17 @@ mod tests {
         if let Ok(mut f) = dir_files {
             let created = f.next();
             if let Ok(cf) = created.unwrap() {
-                assert_eq!(cf.file_name(), "test_table_1.parquet");
+                assert_eq!(cf.file_name(), "test_table_create_table_1.parquet");
             } else {
                 assert!(false);
             }
         }
+        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
+        if directory_cleanup_res.is_err() {
+            panic!("could not remove test directory");
+        }
     }
 
-    #[ignore]
     #[test]
     fn create_multiple_tables() {
         let table_name = "test_multiple_tables";
@@ -176,6 +180,11 @@ mod tests {
             } else {
                 assert!(false);
             }
+        }
+
+        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
+        if directory_cleanup_res.is_err() {
+            panic!("could not remove test directory");
         }
     }
 }

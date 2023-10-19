@@ -380,9 +380,11 @@ mod tests {
             _ => panic!("Expected BadSQL."),
         }
 
-        let table_name = "test_table3";
+        let table_name = "test_table_bad_sql";
 
-        create_test_file(table_name);
+        if create_test_file(table_name).is_err() {
+            panic!("Could not create test file");
+        }
         let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
         if directory_cleanup_res.is_err() {
             panic!("Could not remove test directory");
@@ -406,13 +408,11 @@ mod tests {
             },
             _ => panic!("Expected BadSQL."),
         }
-
-        // Add cleanup function
     }
 
     #[test]
     fn parse_good_sql() {
-        let table_name = "test_table";
+        let table_name = "test_table_good_sql";
 
         assert!(create_test_file(table_name).is_ok());
         if std::fs::read_dir(format!("./tables/{}", table_name)).is_ok() {
@@ -421,10 +421,10 @@ mod tests {
             }
         }
 
-        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
-        if directory_cleanup_res.is_err() {
-            panic!("Could not remove test directory");
-        }
+        let directory_cleanup_res = fs::remove_dir_all(format!("./tables/{}/", table_name));
+        // if directory_cleanup_res.is_err() {
+        //     panic!("Could not remove test directory");
+        // }
 
         let parse_res = parse(&format!("SELECT * FROM {};", table_name));
         assert_eq!(
@@ -445,13 +445,17 @@ mod tests {
 
     #[test]
     fn parse_multiple_queries_to_same_table() {
-        let table_name = "test_table2";
+        let table_name = "test_table_multiple_good_queries";
         assert!(create_test_file(table_name).is_ok());
-
         let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
         if directory_cleanup_res.is_err() {
             panic!("Could not remove test directory");
         }
+
+        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
+        // if directory_cleanup_res.is_err() {
+        //     panic!("Could not remove test directory");
+        // }
 
         let res = parse(&format!(
             "SELECT * FROM {}; SELECT col_1 FROM {};",
