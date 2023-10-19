@@ -15,14 +15,16 @@ use std::fs;
 use std::fs::File;
 use std::sync::Arc;
 
+use crate::creator::creator::{create, CreateError, DirectoryError};
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseError {
-    TableNotFound(TableNotFound),
+    TableNotFound(TableNotFoundStruct),
     BadSQL(BadSQL),
     Unsupported(UnsupportedFunction),
 }
 #[derive(Debug, PartialEq, Clone)]
-pub struct TableNotFound {
+pub struct TableNotFoundStruct {
     description: String,
 }
 
@@ -42,6 +44,38 @@ impl fmt::Display for ParseError {
             ParseError::TableNotFound(e) => write!(f, "Table Not Found: {}", e.description),
             ParseError::BadSQL(e) => write!(f, "BadSQL Error: {}", e.description),
             _ => write!(f, ""),
+        }
+    }
+}
+
+impl ParseError {
+    fn loose_eq(&self, other: ParseError) -> bool {
+        match self {
+            ParseError::TableNotFound(e1) => match other {
+                ParseError::TableNotFound(e2) => {
+                    if !e1.description.ends_with(".parquet")
+                        || !e2.description.ends_with(".parquet")
+                    {
+                        return false;
+                    }
+                    let prefix_original = e1
+                        .description
+                        .trim_end_matches(".parquet")
+                        .rsplitn(2, '_')
+                        .nth(1)
+                        .unwrap_or("");
+                    let prefix_other = e2
+                        .description
+                        .trim_end_matches(".parquet")
+                        .rsplitn(2, '_')
+                        .nth(1)
+                        .unwrap_or("");
+
+                    return prefix_original == prefix_other;
+                }
+                _ => return false,
+            },
+            _ => return false,
         }
     }
 }
@@ -68,7 +102,7 @@ pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, ArrayData>, P
                     query,
                     ..
                 } => {
-                    handle_create_table(name.to_string(), columns);
+                    handle_create_table(&name.to_string());
                     let table = get_table(&name.to_string(), Vec::new(), true);
                     tables.push(table);
                     let query_result = get_table(&name.to_string(), Vec::new(), true);
@@ -86,7 +120,12 @@ pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, ArrayData>, P
                     table,
                     on,
                     returning,
-                } => handle_insert(table_name.to_string(), columns, source),
+                } => {
+                    let err = ParseError::Unsupported(UnsupportedFunction {
+                        description: String::from("Insert not supported."),
+                    });
+                    query_results.push(Err(err));
+                }
                 _ => query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {
                     description: "Query type not implemented.".to_string(),
                 }))),
@@ -99,104 +138,6 @@ pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, ArrayData>, P
         }));
         return vec![err];
     }
-}
-
-fn handle_insert(table_name: String, column_names: &Vec<Ident>, source_data: &Box<Query>) {
-    // Create RecordBatch from existing data
-    let tables = fs::read_dir("./tables").unwrap();
-    let path = format!("tables/{}.parquet", table_name);
-    let file = File::open(&path).unwrap();
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-    let mut reader = builder.build().unwrap();
-
-    if let Some(reader_option) = reader.next() {
-        if let Ok(record_batch_one) = reader_option {
-            let schema = record_batch_one.schema();
-
-            // let arrow_writer = ArrowWriter::try_new(file, schema.clone(), None);
-
-            // Grab Schema from existing RecordBatch
-            let record_batch_two = RecordBatch::try_new(
-                schema.clone(),
-                vec![
-                    Arc::new(Int32Array::from(vec![7, 8])),
-                    Arc::new(StringArray::from(vec!["James", "Stevens"])),
-                    Arc::new(StringArray::from(vec!["Anthropology", "German"])),
-                ],
-            );
-            // source_data = &Box<Query> -> Query -> Body = Box<SetExpr> -> SetExpr -> Values -> rows
-            // let body = *source_data.body.clone();
-            // match body {
-            //     SetExpr::Values(v) => {
-            //         for row in v.rows {
-            //             println!("row: {:?}", row);
-            //             for (i, val) in row.iter().enumerate() {
-            //                 println!("i: {:?}; val: {:?}", i, val.to_string());
-            //             }
-            //         }
-            //     }
-            //     _ => println!("did not find values"),
-            // }
-
-            // Create Second RecordBatch using existing Schema and source_data
-
-            let concatenated_columns = record_batch_one
-                .schema()
-                .fields()
-                .iter()
-                .enumerate()
-                .map(|(i, _)| {
-                    let col1 = record_batch_one.column(i);
-                    let col2 = record_batch_two.as_ref().unwrap().column(i);
-                    arrow::compute::concat(&[col1, col2]).unwrap()
-                })
-                .collect::<Vec<_>>();
-
-            let concatenated_batches =
-                RecordBatch::try_new(schema.clone(), concatenated_columns).unwrap();
-
-            let file_to_write = File::open(&path);
-
-            if let Ok(f) = file_to_write {
-                let mut writer =
-                    ArrowWriter::try_new(f, concatenated_batches.schema(), None).unwrap();
-
-                writer.write(&concatenated_batches).expect("Writing batch");
-                writer.close().unwrap();
-            } else {
-                println!("file not written");
-            }
-
-            // Write concatenated_batches'
-        }
-    }
-}
-
-fn convert_sqlparserdatatype_to_arrowdatatype(sqlparserdatatype: &DataType) -> arrow_datatype {
-    match sqlparserdatatype {
-        sqlparser::ast::DataType::Varchar(_char_len) => arrow::datatypes::DataType::Utf8,
-        sqlparser::ast::DataType::Int(_i) => arrow::datatypes::DataType::Int32,
-        _ => arrow::datatypes::DataType::Utf8,
-    }
-}
-
-pub fn handle_create_table(table_name: String, columns: &Vec<ColumnDef>) {
-    let mut schema_fields: Vec<Field> = Vec::new();
-
-    for column in columns {
-        let name = column.name.to_string();
-        let sqldatatype = &column.data_type;
-
-        let datatype = convert_sqlparserdatatype_to_arrowdatatype(&sqldatatype);
-        schema_fields.push(Field::new(name, datatype, false));
-    }
-    let schema = Schema::new(schema_fields);
-
-    let batch = RecordBatch::new_empty(Arc::new(schema.clone()));
-    let file = File::create(format!("tables/{}.parquet", table_name)).unwrap();
-    let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
-    let _res = writer.write(&batch);
-    writer.close().unwrap();
 }
 
 fn handle_select<'a>(
@@ -249,39 +190,57 @@ fn get_table<'a>(
     if wildcard {
         get_table(table_name, get_all_column_names(table_name), false)
     } else {
-        let path = format!("tables/{}.parquet", table_name);
+        let path = format!("tables/{}/{}.parquet", table_name, table_name);
         let mut return_table = HashMap::new();
-        if let Ok(file) = File::open(path) {
-            let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)
-                .unwrap()
-                .build()
-                .unwrap();
 
-            let next_reader = reader.next();
-            if let Some(record_batch_option) = next_reader {
-                if let Ok(record_batch) = record_batch_option {
-                    let schema = record_batch.schema();
-                    for col_name in columns {
-                        let recordbatch_column = record_batch.column_by_name(&col_name);
-                        return_table
-                            .insert(col_name.to_string(), recordbatch_column.unwrap().to_data());
+        let table_dir = std::fs::read_dir(&path);
+        if table_dir.is_err() {
+            return Err(ParseError::TableNotFound(TableNotFoundStruct {
+                description: String::from(format!("Could not open {}", &path)),
+            }));
+        }
+        for i in 1..=table_dir.unwrap().by_ref().count() {
+            let file_path = format!("tables/{}/{}_{}.parquet", table_name, table_name, i);
+            if let Ok(file) = File::open(file_path) {
+                let mut reader = ParquetRecordBatchReaderBuilder::try_new(file)
+                    .unwrap()
+                    .build()
+                    .unwrap();
+
+                let next_reader = reader.next();
+                if let Some(record_batch_option) = next_reader {
+                    if let Ok(record_batch) = record_batch_option {
+                        let schema = record_batch.schema();
+                        for col_name in &columns {
+                            let recordbatch_column = record_batch.column_by_name(&col_name);
+                            return_table.insert(
+                                col_name.to_string(),
+                                recordbatch_column.unwrap().to_data(),
+                            );
+                        }
                     }
                 }
+                // let record_batch = reader.next().unwrap().unwrap();
+            } else {
+                let err = Err(ParseError::TableNotFound(TableNotFoundStruct {
+                    description: (format!(
+                        "Could not find {} in {}.",
+                        String::from(table_name),
+                        "tables"
+                    )),
+                }));
+                println!("returning from get_table:\n {:?}", err);
+                return err;
             }
-            // let record_batch = reader.next().unwrap().unwrap();
-            return Ok(return_table);
-        } else {
-            let err = Err(ParseError::TableNotFound(TableNotFound {
-                description: (format!(
-                    "Could not find {} in {}.",
-                    String::from(table_name),
-                    "tables"
-                )),
-            }));
-            println!("returning from get_table:\n {:?}", err);
-            return err;
         }
+        return Ok(return_table);
     }
+}
+
+fn handle_create_table(table_name: &str) -> Result<(), ParseError> {
+    return Err(ParseError::Unsupported(UnsupportedFunction {
+        description: String::from("Handle create not set up"),
+    }));
 }
 
 fn generate_table_string(arraydata: HashMap<String, ArrayData>) {
@@ -300,30 +259,75 @@ fn generate_table_string(arraydata: HashMap<String, ArrayData>) {
     }
 }
 
-fn create_test_file(table_name: &str) {
+#[derive(Debug, PartialEq, Clone)]
+pub struct TestError {
+    description: String,
+}
+
+pub fn create_test_file(table_name: &str) -> Result<(), TestError> {
+    let mut dir_len = 0;
+
+    if let Ok(mut dir_tables) = std::fs::read_dir(format!("./tables/{}", table_name)) {
+        dir_len = dir_tables.by_ref().count();
+        println!("dir count: {}", dir_len);
+    } else {
+        if fs::create_dir(format!("./tables/{}/", table_name)).is_err() {
+            return Err(TestError {
+                description: String::from("Could not create directory for tables."),
+            });
+        }
+    }
+
     let schema = Schema::new(vec![
         Field::new("col_1", arrow_datatype::Int32, false),
         Field::new("col_2", arrow_datatype::Int32, false),
         Field::new("col_3", arrow_datatype::Int32, true),
     ]);
 
-    let my_vec = vec![
+    let cols = vec![
         Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef,
         Arc::new(Int32Array::from(vec![4, 5, 6])) as ArrayRef,
         Arc::new(Int32Array::from(vec![7, 8, 9])) as ArrayRef,
     ];
 
-    let batch = RecordBatch::try_new(Arc::new(schema.clone()), my_vec).unwrap();
+    let batch = RecordBatch::try_new(Arc::new(schema), cols).unwrap();
+    let file = File::create(format!(
+        "tables/{}/{}_{}.parquet",
+        table_name,
+        table_name,
+        dir_len + 1
+    ));
 
-    let file = File::create(format!("tables/{}.parquet", table_name)).unwrap();
-    let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
-    let res = writer.write(&batch);
-    writer.close().unwrap();
+    if let Ok(file) = file {
+        dir_len = std::fs::read_dir(&format!("./tables/{}", table_name))
+            .unwrap()
+            .by_ref()
+            .count();
+        println!("attempting to write file {}", dir_len);
+        let mut writer = ArrowWriter::try_new(file, batch.schema(), None).unwrap();
+        let res = writer.write(&batch);
+        if let Ok(_res) = res {
+            writer.close().unwrap();
+            println!(
+                "succesfully wrote file {}, directory now has {} files.",
+                dir_len, dir_len
+            );
+        } else {
+            return Err(TestError {
+                description: String::from("Unsuccessful Write."),
+            });
+        }
+    } else {
+        return Err(TestError {
+            description: String::from("Could not create file."),
+        });
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::fs::{self, remove_dir_all};
 
     use arrow::buffer::Buffer;
 
@@ -346,10 +350,7 @@ mod tests {
 
         match &parse_res[0] {
             Err(parse_error) => match parse_error {
-                ParseError::TableNotFound(err) => assert_eq!(
-                    err.description,
-                    format!("Could not find {} in {}.", table_name, "tables")
-                ),
+                ParseError::TableNotFound(err) => assert!(true),
                 _ => panic!("Expected TableNotFound error."),
             },
             _ => panic!("Expected TableNotFound error."),
@@ -405,7 +406,14 @@ mod tests {
     #[test]
     fn parse_good_sql() {
         let table_name = "test_table";
-        create_test_file(table_name);
+
+        assert!(create_test_file(table_name).is_ok());
+        if std::fs::read_dir(format!("./tables/{}", table_name)).is_ok() {
+            if remove_dir_all(format!("./tables/{}", table_name)).is_err() {
+                panic!("Cannot set up create_new_table test")
+            }
+        }
+
         let parse_res = parse(&format!("SELECT * FROM {};", table_name));
         assert_eq!(
             parse_res.len(),
