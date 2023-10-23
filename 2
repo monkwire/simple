@@ -440,37 +440,42 @@ mod tests {
         );
 
         let res = parse_res[0].clone().unwrap();
-        assert_eq!(res["col_1"][0].len(), 3);
-        assert_eq!(res["col_2"][0].len(), 3);
-        assert_eq!(res["col_3"][0].len(), 3);
+        println!("res: {:?}", res["col_1"].ArrayData;
+        assert_eq!(res["col_1"].len(), 3);
+        assert_eq!(res["col_2"].len(), 3);
+        assert_eq!(res["col_3"].len(), 3);
     }
 
     #[test]
     fn parse_multiple_queries_to_same_table() {
         let table_name = "test_table_multiple_good_queries";
         assert!(create_test_file(table_name).is_ok());
+        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
+        if directory_cleanup_res.is_err() {
+            panic!("Could not remove test directory");
+        }
+
+        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
+        // if directory_cleanup_res.is_err() {
+        //     panic!("Could not remove test directory");
+        // }
 
         let res = parse(&format!(
             "SELECT * FROM {}; SELECT col_1 FROM {};",
             table_name, table_name
         ));
-
-        let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
-        if directory_cleanup_res.is_err() {
-            panic!("Could not remove test directory");
-        }
         assert_eq!(res.len(), 2);
 
-        println!("res: {:?}", res);
         assert!(res[0].is_ok());
         let res_1 = res[0].clone().unwrap();
-        assert_eq!(res_1["col_1"][0].len(), 3);
-        assert_eq!(res_1["col_2"][0].len(), 3);
-        assert_eq!(res_1["col_3"][0].len(), 3);
+        assert_eq!(res_1["col_1"].len(), 3);
+        assert_eq!(res_1["col_2"].len(), 3);
+        assert_eq!(res_1["col_3"].len(), 3);
 
         assert!(res[1].is_ok());
         let res_2 = res[1].clone().unwrap();
-        assert_eq!(res_1["col_1"][0].len(), 3);
+        assert_eq!(res_1["col_1"].len(), 3);
+
         assert!(!res_2.contains_key("col_2"));
         assert!(!res_2.contains_key("col_3"));
     }
