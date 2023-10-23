@@ -1,6 +1,6 @@
 use ::std::fmt;
 use arrow::array::ArrayData;
-use arrow::datatypes::DataType as arrow_datatype;
+use arrow::datatypes::{self, DataType as arrow_datatype};
 use arrow::datatypes::{Field, Schema};
 use arrow_array::{ArrayRef, Int32Array, RecordBatch, StringArray};
 pub(crate) use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
@@ -15,7 +15,7 @@ use std::fs;
 use std::fs::File;
 use std::sync::Arc;
 
-use crate::creator::creator::{create, CreateError, DirectoryError};
+use crate::creator::creator::create;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseError {
@@ -82,12 +82,32 @@ impl ParseError {
 
 impl Error for ParseError {}
 
+enum QueryType {
+    Select,
+    Create,
+    Insert,
+    Drop,
+}
+
+pub struct Column {
+    name: String,
+    col_type: DataType,
+    values: Vec<ArrayRef>,
+}
+
+pub struct statement {
+    statement_type: QueryType,
+    columns: Vec<Column>,
+    table_name: String,
+}
+
 pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, Vec<ArrayData>>, ParseError>> {
     let statements_res = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql);
     if let Ok(statements) = statements_res {
         let mut query_results = Vec::new();
 
         for statement in &statements {
+            println!("statement: {:?}", statement);
             match statement {
                 Statement::Query(query) => {
                     if let ast::SetExpr::Select(sel) = &*query.body {
@@ -179,7 +199,7 @@ fn get_all_column_names(table_name: &str) -> Vec<String> {
     columns
 }
 
-fn get_table<'a>(
+fn get_table(
     table_name: &str,
     columns: Vec<String>,
     wildcard: bool,

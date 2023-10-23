@@ -51,7 +51,15 @@ fn main() {
 
     // println!("{:?}", create("sports", music_schema, my_vec));
     let parse_res = parse("SELECT * FROM sports;");
-    println!("{:?}", parse_res);
+    parse(
+        "CREATE TABLE employees (
+            employee_id INT PRIMARY KEY,
+            first_name VARCHAR(50),
+            last_name VARCHAR(50),
+            date_of_birth DATE
+            );",
+    );
+    // println!("{:?}", parse_res);
 }
 
 //     let sql_queries = vec![
