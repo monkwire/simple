@@ -1,3 +1,4 @@
+use crate::creator::creator::create;
 use ::std::fmt;
 use arrow::array::ArrayData;
 use arrow::datatypes::{self, DataType as arrow_datatype};
@@ -7,15 +8,13 @@ pub(crate) use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use sqlparser::ast::Query;
-use sqlparser::ast::{self, ColumnDef, DataType, Ident, SelectItem, Statement};
+use sqlparser::ast::{self, ColumnDef, DataType, Ident, SelectItem, Statement as AstStatement};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::sync::Arc;
-
-use crate::creator::creator::create;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseError {
@@ -86,7 +85,6 @@ enum QueryType {
     Select,
     Create,
     Insert,
-    Drop,
 }
 
 pub struct Column {
@@ -101,13 +99,75 @@ pub struct statement {
     table_name: String,
 }
 
-pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, Vec<ArrayData>>, ParseError>> {
+impl TryFrom<AstStatement> for QueryType {
+    type Error = UnsupportedFunction;
+
+    fn try_from(value: AstStatement) -> Result<Self, Self::Error> {
+        match value {
+            AstStatement::Query(query) => Ok(QueryType::Select),
+            AstStatement::CreateTable { .. } => Ok(QueryType::Create),
+            AstStatement::Insert { .. } => Ok(QueryType::Insert),
+            _ => Err(UnsupportedFunction { description: String::from("Query type unsupported") }),
+    }
+}
+
+
+impl TryFrom<AstStatement> for QueryType {
+
+pub fn handle_statements(statements: Vec<AstStatement>) -> Vec<Result<(), ParseError>>  mut query_results = Vec::new();
+
+    for statement in &statements {
+        println!("statement: {:?}", statement);
+        match statement {
+            AstStatement::Query(query) => {
+                if let ast::SetExpr::Select(sel) = &*query.body {
+                    let query_res = handle_select(&sel);
+                    query_results.push(query_res);
+                }
+            }
+            AstStatement::CreateTable {
+                name,
+                columns,
+                query,
+                ..
+            } => {
+                handle_create_table(&name.to_string());
+                let query_result = get_table(&name.to_string(), Vec::new(), true);
+                query_results.push(query_result);
+            }
+            AstStatement::Insert {
+                or,
+                into,
+                table_name,
+                columns,
+                overwrite,
+                source,
+                partitioned,
+                after_columns,
+                table,
+                on,
+                returning,
+            } => {
+                let err = ParseError::Unsupported(UnsupportedFunction {
+                    description: String::from("Insert not supported."),
+                });
+                query_results.push(Err(err));
+            }
+            _ => query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {
+                description: "Query type not implemented.".to_string(),
+            }))),
+        }
+    }
+    // return query_results;
+    vec![Ok(())]
+}
+
+pub fn parse(sql: &str) -> Result<Vec<Statement>, ParseError> {
     let statements_res = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql);
     if let Ok(statements) = statements_res {
         let mut query_results = Vec::new();
 
         for statement in &statements {
-            println!("statement: {:?}", statement);
             match statement {
                 Statement::Query(query) => {
                     if let ast::SetExpr::Select(sel) = &*query.body {
@@ -150,10 +210,9 @@ pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, Vec<ArrayData
         }
         return query_results;
     } else {
-        let err = Err(ParseError::BadSQL(BadSQL {
+        return Err(ParseError::BadSQL(BadSQL {
             description: format!("Could not parse {}", sql),
         }));
-        return vec![err];
     }
 }
 
