@@ -82,10 +82,9 @@ impl ParseError {
 
 impl Error for ParseError {}
 
-pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, ArrayData>, ParseError>> {
+pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, Vec<ArrayData>>, ParseError>> {
     let statements_res = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql);
     if let Ok(statements) = statements_res {
-        let mut tables = Vec::new();
         let mut query_results = Vec::new();
 
         for statement in &statements {
@@ -103,8 +102,6 @@ pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, ArrayData>, P
                     ..
                 } => {
                     handle_create_table(&name.to_string());
-                    let table = get_table(&name.to_string(), Vec::new(), true);
-                    tables.push(table);
                     let query_result = get_table(&name.to_string(), Vec::new(), true);
                     query_results.push(query_result);
                 }
@@ -142,7 +139,7 @@ pub fn parse(sql: &str) -> Vec<Result<HashMap<std::string::String, ArrayData>, P
 
 fn handle_select<'a>(
     select_statement: &'a Box<sqlparser::ast::Select>,
-) -> Result<HashMap<std::string::String, ArrayData>, ParseError> {
+) -> Result<HashMap<std::string::String, Vec<ArrayData>>, ParseError> {
     let columns = &select_statement.projection;
 
     let mut column_names: Vec<String> = vec![];
@@ -169,7 +166,7 @@ fn handle_select<'a>(
 }
 
 fn get_all_column_names(table_name: &str) -> Vec<String> {
-    let path = format!("tables/{}.parquet", table_name);
+    let path = format!("tables/{}/{}_1.parquet", table_name, table_name);
     let mut columns = Vec::new();
     if let Ok(file) = File::open(&path) {
         let reader = SerializedFileReader::new(file).unwrap();
@@ -186,19 +183,20 @@ fn get_table<'a>(
     table_name: &str,
     columns: Vec<String>,
     wildcard: bool,
-) -> Result<HashMap<std::string::String, ArrayData>, ParseError> {
+) -> Result<HashMap<std::string::String, Vec<ArrayData>>, ParseError> {
     if wildcard {
         get_table(table_name, get_all_column_names(table_name), false)
     } else {
-        let path = format!("tables/{}/{}.parquet", table_name, table_name);
+        let dir_path = format!("tables/{}", table_name);
         let mut return_table = HashMap::new();
 
-        let table_dir = std::fs::read_dir(&path);
+        let table_dir = std::fs::read_dir(&dir_path);
         if table_dir.is_err() {
             return Err(ParseError::TableNotFound(TableNotFoundStruct {
-                description: String::from(format!("Could not open {}", &path)),
+                description: String::from(format!("Could not open {}", &dir_path)),
             }));
         }
+
         for i in 1..=table_dir.unwrap().by_ref().count() {
             let file_path = format!("tables/{}/{}_{}.parquet", table_name, table_name, i);
             if let Ok(file) = File::open(file_path) {
@@ -208,15 +206,20 @@ fn get_table<'a>(
                     .unwrap();
 
                 let next_reader = reader.next();
+
                 if let Some(record_batch_option) = next_reader {
                     if let Ok(record_batch) = record_batch_option {
                         let schema = record_batch.schema();
+
                         for col_name in &columns {
+                            let arg_1 = col_name.to_string();
+                            // let arg_2 = recordbatch_column.unwrap().to_data();
                             let recordbatch_column = record_batch.column_by_name(&col_name);
-                            return_table.insert(
-                                col_name.to_string(),
-                                recordbatch_column.unwrap().to_data(),
-                            );
+                            return_table
+                                .entry(col_name.to_string())
+                                .or_insert_with(Vec::new)
+                                .push(recordbatch_column.unwrap().to_owned().to_data())
+                            // .or_insert(recordbatch_column.unwrap().to_data());
                         }
                     }
                 }
@@ -229,7 +232,6 @@ fn get_table<'a>(
                         "tables"
                     )),
                 }));
-                println!("returning from get_table:\n {:?}", err);
                 return err;
             }
         }
@@ -387,7 +389,7 @@ mod tests {
         }
         let directory_cleanup_res = fs::remove_dir_all(format!("tables/{}", table_name));
         if directory_cleanup_res.is_err() {
-            panic!("Could not remove test directory");
+            panic!("could not remove test directory");
         }
 
         let query_2 = &format!(
@@ -415,18 +417,18 @@ mod tests {
         let table_name = "test_table_good_sql";
 
         assert!(create_test_file(table_name).is_ok());
-        if std::fs::read_dir(format!("./tables/{}", table_name)).is_ok() {
-            if remove_dir_all(format!("./tables/{}", table_name)).is_err() {
-                panic!("Cannot set up create_new_table test")
-            }
-        }
-
-        let directory_cleanup_res = fs::remove_dir_all(format!("./tables/{}/", table_name));
-        // if directory_cleanup_res.is_err() {
-        //     panic!("Could not remove test directory");
+        // if std::fs::read_dir(format!("./tables/{}", table_name)).is_ok() {
+        //     if remove_dir_all(format!("./tables/{}", table_name)).is_err() {
+        //         panic!("Cannot set up create_new_table test")
+        //     }
         // }
 
         let parse_res = parse(&format!("SELECT * FROM {};", table_name));
+
+        let directory_cleanup_res = fs::remove_dir_all(format!("./tables/{}/", table_name));
+        if directory_cleanup_res.is_err() {
+            panic!("Could not remove test directory");
+        }
         assert_eq!(
             parse_res.len(),
             1,
