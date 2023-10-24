@@ -90,13 +90,13 @@ enum QueryType {
 pub struct Column {
     name: String,
     col_type: DataType,
-    values: Vec<ArrayRef>,
 }
 
-pub struct statement {
+pub struct Statement {
     statement_type: QueryType,
     columns: Vec<Column>,
     table_name: String,
+    values: Vec<ArrayRef>,
 }
 
 impl TryFrom<AstStatement> for QueryType {
@@ -110,9 +110,47 @@ impl TryFrom<AstStatement> for QueryType {
             _ => Err(UnsupportedFunction { description: String::from("Query type unsupported") }),
     }
 }
+}
+
+// fn get_all_column_names(table_name: &str) -> Vec<String> {
+//     let path = format!("tables/{}/{}_1.parquet", table_name, table_name);
+//     let mut columns = Vec::new();
+//     if let Ok(file) = File::open(&path) {
+//         let reader = SerializedFileReader::new(file).unwrap();
+//         let schema = reader.metadata().file_metadata().schema();
+//         for field in schema.get_fields().iter() {
+//             columns.push(field.name().to_string());
+//         }
+//     }
+//
+//     columns
+// }
 
 
-impl TryFrom<AstStatement> for QueryType {
+
+impl TryFrom<ColumnDef> for Column {
+    type Error = UnsupportedFunction;
+
+    fn try_from(value: ColumnDef) -> Result<Self, Self::Error> {
+        Self.name = value.name.value;
+        Self.col_type = value.data_type
+
+
+    }
+}
+
+impl TryFrom<AstStatement> for Statement {
+    type Error = UnsupportedFunction;
+
+    fn try_from(value: AstStatement) -> Result<Self, Self::Error> {
+        match value {
+            AstStatement::Query(query) => Err(UnsupportedFunction {description: String::from("query not implemented")}),
+            AstStatement::CreateTable { name, columns, ..  } {
+                Statement {QueryType: Create, columns: }
+            }
+        }
+    }
+}
 
 pub fn handle_statements(statements: Vec<AstStatement>) -> Vec<Result<(), ParseError>>  mut query_results = Vec::new();
 

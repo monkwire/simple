@@ -51,14 +51,23 @@ fn main() {
 
     // println!("{:?}", create("sports", music_schema, my_vec));
     let parse_res = parse("SELECT * FROM sports;");
+    // parse(
+    //     "CREATE TABLE employees (
+    //         employee_id INT PRIMARY KEY,
+    //         first_name VARCHAR(50),
+    //         last_name VARCHAR(50),
+    //         date_of_birth DATE
+    //         );",
+    // );
     parse(
-        "CREATE TABLE employees (
-            employee_id INT PRIMARY KEY,
-            first_name VARCHAR(50),
-            last_name VARCHAR(50),
-            date_of_birth DATE
-            );",
+        "INSERT INTO employees (employee_id, first_name, last_name, date_of_birth) VALUES
+(1, 'John', 'Doe', '1985-03-15'),
+(2, 'Jane', 'Doe', '1990-07-22'),
+(3, 'Alice', 'Johnson', '1978-11-05'),
+(4, 'Bob', 'Smith', '1983-01-29');
+",
     );
+
     // println!("{:?}", parse_res);
 }
 
