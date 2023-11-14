@@ -1,14 +1,16 @@
 use crate::creator::creator::create;
 use ::std::fmt;
 use arrow::array::ArrayData;
-use arrow::datatypes::{self, DataType as arrow_datatype};
+use arrow::datatypes::{self, DataType as ArrowDataType};
 use arrow::datatypes::{Field, Schema};
 use arrow_array::{ArrayRef, Int32Array, RecordBatch, StringArray};
 pub(crate) use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::file::reader::{FileReader, SerializedFileReader};
-use sqlparser::ast::Query;
-use sqlparser::ast::{self, ColumnDef, DataType, Ident, SelectItem, Statement as AstStatement};
+use sqlparser::ast::{
+    self, ColumnDef, DataType as AstDataType, Ident, SelectItem, SetExpr, Statement as AstStatement,
+};
+use sqlparser::ast::{Query, TableWithJoins};
 use sqlparser::dialect::GenericDialect;
 use std::collections::HashMap;
 use std::error::Error;
@@ -89,7 +91,7 @@ enum QueryType {
 
 pub struct Column {
     name: String,
-    col_type: DataType,
+    col_type: Option<ArrowDataType>,
 }
 
 pub struct Statement {
@@ -107,9 +109,11 @@ impl TryFrom<AstStatement> for QueryType {
             AstStatement::Query(query) => Ok(QueryType::Select),
             AstStatement::CreateTable { .. } => Ok(QueryType::Create),
             AstStatement::Insert { .. } => Ok(QueryType::Insert),
-            _ => Err(UnsupportedFunction { description: String::from("Query type unsupported") }),
+            _ => Err(UnsupportedFunction {
+                description: String::from("Query type unsupported"),
+            }),
+        }
     }
-}
 }
 
 // fn get_all_column_names(table_name: &str) -> Vec<String> {
@@ -126,16 +130,32 @@ impl TryFrom<AstStatement> for QueryType {
 //     columns
 // }
 
+fn convert_sqlparserdatatype_to_arrowdatatype(sqlparserdatatype: &AstDataType) -> ArrowDataType {
+    match sqlparserdatatype {
+        sqlparser::ast::DataType::Varchar(_char_len) => arrow::datatypes::DataType::Utf8,
+        sqlparser::ast::DataType::Int(_i) => arrow::datatypes::DataType::Int32,
+        _ => arrow::datatypes::DataType::Utf8,
+    }
+}
 
+impl TryFrom<Ident> for Column {
+    type Error = UnsupportedFunction;
 
+    fn try_from(value: Ident) -> Result<Self, Self::Error> {
+        Ok(Self {
+            name: value.value,
+            col_type: None,
+        })
+    }
+}
 impl TryFrom<ColumnDef> for Column {
     type Error = UnsupportedFunction;
 
     fn try_from(value: ColumnDef) -> Result<Self, Self::Error> {
-        Self.name = value.name.value;
-        Self.col_type = value.data_type
-
-
+        Ok(Self {
+            name: value.name.value,
+            col_type: Some(convert_sqlparserdatatype_to_arrowdatatype(&value.data_type)),
+        })
     }
 }
 
@@ -144,35 +164,19 @@ impl TryFrom<AstStatement> for Statement {
 
     fn try_from(value: AstStatement) -> Result<Self, Self::Error> {
         match value {
-            AstStatement::Query(query) => Err(UnsupportedFunction {description: String::from("query not implemented")}),
-            AstStatement::CreateTable { name, columns, ..  } {
-                Statement {QueryType: Create, columns: }
-            }
-        }
-    }
-}
+            AstStatement::Query(query) => Err(UnsupportedFunction {
+                description: String::from("query not implemented"),
+            }),
+            AstStatement::CreateTable { name, columns, .. } => Ok(Statement {
+                table_name: name.to_string(),
+                statement_type: QueryType::Create,
+                columns: columns
+                    .into_iter()
+                    .map(|c| Column::try_from(c).unwrap())
+                    .collect::<Vec<Column>>(),
+                values: Vec::new(),
+            }),
 
-pub fn handle_statements(statements: Vec<AstStatement>) -> Vec<Result<(), ParseError>>  mut query_results = Vec::new();
-
-    for statement in &statements {
-        println!("statement: {:?}", statement);
-        match statement {
-            AstStatement::Query(query) => {
-                if let ast::SetExpr::Select(sel) = &*query.body {
-                    let query_res = handle_select(&sel);
-                    query_results.push(query_res);
-                }
-            }
-            AstStatement::CreateTable {
-                name,
-                columns,
-                query,
-                ..
-            } => {
-                handle_create_table(&name.to_string());
-                let query_result = get_table(&name.to_string(), Vec::new(), true);
-                query_results.push(query_result);
-            }
             AstStatement::Insert {
                 or,
                 into,
@@ -185,73 +189,143 @@ pub fn handle_statements(statements: Vec<AstStatement>) -> Vec<Result<(), ParseE
                 table,
                 on,
                 returning,
-            } => {
-                let err = ParseError::Unsupported(UnsupportedFunction {
-                    description: String::from("Insert not supported."),
-                });
-                query_results.push(Err(err));
-            }
-            _ => query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {
-                description: "Query type not implemented.".to_string(),
-            }))),
+            } => Ok(Statement {
+                statement_type: QueryType::Insert,
+                columns: columns
+                    .into_iter()
+                    .map(|c| Column::try_from(c).unwrap())
+                    .collect::<Vec<Column>>(),
+                table_name: table_name.to_string(),
+                values: {
+                    match *source.body {
+                        SetExpr::Values(v) => v.rows,
+                        _ => Err(UnsupportedFunction),
+                    }
+                },
+            }),
+            _ => Err(UnsupportedFunction {
+                description: String::from("Unsupported try_from"),
+            }),
         }
     }
-    // return query_results;
-    vec![Ok(())]
 }
+
+// pub fn handle_statements(statements: Vec<AstStatement>) -> Vec<Result<(), ParseError>> {
+//     for statement in &statements {
+//         println!("statement: {:?}", statement);
+//         match statement {
+//             AstStatement::Query(query) => {
+//                 if let ast::SetExpr::Select(sel) = &*query.body {
+//                     let query_res = handle_select(&sel);
+//                     query_results.push(query_res);
+//                 }
+//             }
+//             AstStatement::CreateTable {
+//                 name,
+//                 columns,
+//                 query,
+//                 ..
+//             } => {
+//                 handle_create_table(&name.to_string());
+//                 let query_result = get_table(&name.to_string(), Vec::new(), true);
+//                 query_results.push(query_result);
+//             }
+//             AstStatement::Insert {
+//                 or,
+//                 into,
+//                 table_name,
+//                 columns,
+//                 overwrite,
+//                 source,
+//                 partitioned,
+//                 after_columns,
+//                 table,
+//                 on,
+//                 returning,
+//             } => {
+//                 let err = ParseError::Unsupported(UnsupportedFunction {
+//                     description: String::from("Insert not supported."),
+//                 });
+//                 query_results.push(Err(err));
+//             }
+//             _ => query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {
+//                 description: "Query type not implemented.".to_string(),
+//             }))),
+//         }
+//     }
+//     // return query_results;
+//     vec![Ok(())]
+// }
 
 pub fn parse(sql: &str) -> Result<Vec<Statement>, ParseError> {
     let statements_res = sqlparser::parser::Parser::parse_sql(&GenericDialect {}, sql);
-    if let Ok(statements) = statements_res {
-        let mut query_results = Vec::new();
 
-        for statement in &statements {
-            match statement {
-                Statement::Query(query) => {
-                    if let ast::SetExpr::Select(sel) = &*query.body {
-                        let query_res = handle_select(&sel);
-                        query_results.push(query_res);
-                    }
-                }
-                Statement::CreateTable {
-                    name,
-                    columns,
-                    query,
-                    ..
-                } => {
-                    handle_create_table(&name.to_string());
-                    let query_result = get_table(&name.to_string(), Vec::new(), true);
-                    query_results.push(query_result);
-                }
-                Statement::Insert {
-                    or,
-                    into,
-                    table_name,
-                    columns,
-                    overwrite,
-                    source,
-                    partitioned,
-                    after_columns,
-                    table,
-                    on,
-                    returning,
-                } => {
-                    let err = ParseError::Unsupported(UnsupportedFunction {
-                        description: String::from("Insert not supported."),
-                    });
-                    query_results.push(Err(err));
-                }
-                _ => query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {
-                    description: "Query type not implemented.".to_string(),
-                }))),
-            }
+    if let Ok(ast_statements) = statements_res {
+        if ast_statements.len() == 0 {
+            return Err(ParseError::BadSQL(BadSQL {
+                description: String::from("Error parsing 0 statments."),
+            }));
         }
-        return query_results;
+
+        let statements: Vec<Statement> = Vec::new();
+
+        return Ok(statements);
     } else {
         return Err(ParseError::BadSQL(BadSQL {
-            description: format!("Could not parse {}", sql),
+            description: format!("Error parsing {}", sql),
         }));
     }
+
+    // if let Ok(statements) = statements_res {
+    //     let mut query_results = Vec::new();
+    //
+    //     for statement in &statements {
+    //         match statement {
+    //             Statement::Query(query) => {
+    //                 if let ast::SetExpr::Select(sel) = &*query.body {
+    //                     let query_res = handle_select(&sel);
+    //                     query_results.push(query_res);
+    //                 }
+    //             }
+    //             Statement::CreateTable {
+    //                 name,
+    //                 columns,
+    //                 query,
+    //                 ..
+    //             } => {
+    //                 handle_create_table(&name.to_string());
+    //                 let query_result = get_table(&name.to_string(), Vec::new(), true);
+    //                 query_results.push(query_result);
+    //             }
+    //             Statement::Insert {
+    //                 or,
+    //                 into,
+    //                 table_name,
+    //                 columns,
+    //                 overwrite,
+    //                 source,
+    //                 partitioned,
+    //                 after_columns,
+    //                 table,
+    //                 on,
+    //                 returning,
+    //             } => {
+    //                 let err = ParseError::Unsupported(UnsupportedFunction {
+    //                     description: String::from("Insert not supported."),
+    //                 });
+    //                 query_results.push(Err(err));
+    //             }
+    //             _ => query_results.push(Err(ParseError::Unsupported(UnsupportedFunction {
+    //                 description: "Query type not implemented.".to_string(),
+    //             }))),
+    //         }
+    //     }
+    //     return query_results;
+    // } else {
+    //     return Err(ParseError::BadSQL(BadSQL {
+    //         description: format!("Could not parse {}", sql),
+    //     }));
+    // }
 }
 
 fn handle_select<'a>(
@@ -367,10 +441,10 @@ fn generate_table_string(arraydata: HashMap<String, ArrayData>) {
 
     for (_col_name, arr) in &arraydata {
         match arr.data_type() {
-            arrow_datatype::Utf8 => {
+            ArrowDataType::Utf8 => {
                 let _string_array = StringArray::from(arr.clone());
             }
-            arrow_datatype::Int32 => {
+            ArrowDataType::Int32 => {
                 let _int_array = Int32Array::from(arr.clone());
             }
             _ => println!("unsupported"),
@@ -405,9 +479,9 @@ mod tests {
         }
 
         let schema = Schema::new(vec![
-            Field::new("col_1", arrow_datatype::Int32, false),
-            Field::new("col_2", arrow_datatype::Int32, false),
-            Field::new("col_3", arrow_datatype::Int32, true),
+            Field::new("col_1", ArrowDataType::Int32, false),
+            Field::new("col_2", ArrowDataType::Int32, false),
+            Field::new("col_3", ArrowDataType::Int32, true),
         ]);
 
         let cols = vec![
