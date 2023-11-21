@@ -1,4 +1,4 @@
-[[simple_image.png]]
+[[https://github.com/Monkwire3/simple/blob/main/simple_image.png]]
 
 
 # Intro #
