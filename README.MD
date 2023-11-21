@@ -1,4 +1,4 @@
-[Simple Logo](https://github.com/Monkwire3/simple/blob/main/simple_image.png)
+![Simple Logo](https://github.com/Monkwire3/simple/blob/main/simple_image.png)
 
 
 # Intro #
