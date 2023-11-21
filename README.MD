@@ -5,10 +5,10 @@ Simple is a database framework built to work with Parquet files. This database i
 To try this database yourself, clone the directory into your project files:
 `git clone https://github.com/Monkwire3/simple.git`
 
-To use the database save the program files into the `src` folder of your project, then import the mods you need.
+To use the database, save the program files into the `src` folder of your project, then import the mods you want.
 
 # Usage #
-Simple is designed such that all features can be used only by interfacing with the parse function. `parse` expects a string of valid SQL separated by semicolons. If you would like more control, the functions that interfaces with the database files can be exposed and called independently.
+Simple is designed so that all features can be used only by interfacing with the parse function. `parse` expects a string of valid SQL separated by semicolons. If you would like more control, the functions that interfaces with the database files can be exposed and called independently.
 
 **Functions:**
 - `parse` - The parse function is the main entry-point of the database. `parse` handles a `&str` of semicolon-separated SQL queries, then returns an array of `Results` for each query. If the `&str` cannot be parsed as valid SQL, `parse` will return an array with a single element: a `ParseError`.
