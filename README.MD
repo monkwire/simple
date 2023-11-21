@@ -1,4 +1,4 @@
-[/simple_image.png]
+[[/simple_image.png]]
 
 
 # Intro #
