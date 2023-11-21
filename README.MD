@@ -1,4 +1,4 @@
-[/simple_mage.png]
+[/simple_image.png]
 
 
 # Intro #
