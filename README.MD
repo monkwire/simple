@@ -1,3 +1,6 @@
+[/simple_mage.png]
+
+
 # Intro #
 Simple is a database framework built to work with Parquet files. This database is ideal for databases that benefit from fast read and write operations, as expensive operations can be delayed and scheduled. The Simple API is designed to handle correct SQL input strings and modify Parquet files appropriately. For more control, the Parquet file editor modules can be exposed and the individual functions can be called directly. Simple is written in Rust using the Parquet and Arrow crates.
 
