@@ -7,7 +7,7 @@ Simple is a database framework with fast read and write operations that allows e
 
 # Installation #
 To try Simple yourself, clone the directory into your project files:
-`git clone https://github.com/Monkwire3/simple.git`
+`git clone https://github.com/monkwire/simple.git`
 
 To use the database, save the program files into the `src` folder of your project, then import the mods you want.
 
